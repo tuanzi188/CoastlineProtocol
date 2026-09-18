@@ -1,0 +1,42 @@
+[
+  {
+    "fps": 52.0,
+    "view": "combat_01_menu"
+  },
+  {
+    "fps": 59.0,
+    "view": "combat_02_start"
+  },
+  {
+    "fps": 60.0,
+    "view": "combat_03_enemy"
+  },
+  {
+    "fps": 81.0,
+    "view": "combat_04_soldier"
+  },
+  {
+    "fps": 81.0,
+    "view": "combat_05_health"
+  },
+  {
+    "fps": 56.0,
+    "view": "combat_06_healing"
+  },
+  {
+    "fps": 51.0,
+    "view": "combat_07_pause"
+  },
+  {
+    "fps": 57.0,
+    "view": "combat_08_zone"
+  },
+  {
+    "fps": 54.0,
+    "view": "combat_09_defeat"
+  },
+  {
+    "fps": 52.0,
+    "view": "combat_10_victory"
+  }
+]

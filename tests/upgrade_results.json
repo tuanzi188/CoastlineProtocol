@@ -1,0 +1,98 @@
+{
+  "checks": [
+    {
+      "name": "settings panel wired",
+      "pass": true
+    },
+    {
+      "name": "scene model details created",
+      "pass": true
+    },
+    {
+      "name": "human target articulated",
+      "pass": true
+    },
+    {
+      "name": "headshot one-shot mannequin",
+      "pass": true
+    },
+    {
+      "name": "course starts at village",
+      "pass": true
+    },
+    {
+      "name": "course has 180 second standard limit",
+      "pass": true
+    },
+    {
+      "name": "course timer pauses",
+      "pass": true
+    },
+    {
+      "name": "course mannequin pauses",
+      "pass": true
+    },
+    {
+      "name": "course advances to stage 2",
+      "pass": true
+    },
+    {
+      "name": "course advances to stage 3",
+      "pass": true
+    },
+    {
+      "name": "course completion shows result",
+      "pass": true
+    },
+    {
+      "name": "course all nine counted",
+      "pass": true
+    },
+    {
+      "name": "retry starts clean",
+      "pass": true
+    },
+    {
+      "name": "course timeout produces result",
+      "pass": true
+    },
+    {
+      "name": "free mode clears course actors",
+      "pass": true
+    },
+    {
+      "name": "configured fov applied",
+      "pass": true
+    },
+    {
+      "name": "view motion preference exposed",
+      "pass": true
+    },
+    {
+      "name": "headshots reset with loadout",
+      "pass": true
+    },
+    {
+      "name": "hard mode changes limit and motion",
+      "pass": true
+    },
+    {
+      "name": "muzzle obstruction blocks damage",
+      "pass": true
+    },
+    {
+      "name": "unobstructed shot reaches mannequin",
+      "pass": true
+    },
+    {
+      "name": "settings apply sensitivity and fov",
+      "pass": true
+    },
+    {
+      "name": "zero volume mutes master",
+      "pass": true
+    }
+  ],
+  "failed": 0,
+  "passed": 23
+}

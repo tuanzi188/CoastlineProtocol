@@ -1,0 +1,38 @@
+{
+  "checks": [
+    {
+      "name": "ten individual fingers",
+      "pass": true
+    },
+    {
+      "name": "detailed glove meshes built",
+      "pass": true
+    },
+    {
+      "name": "ADS FOV preserved",
+      "pass": true
+    },
+    {
+      "name": "support hand moves to magazine",
+      "pass": true
+    },
+    {
+      "name": "magazine follows reload drop",
+      "pass": true
+    },
+    {
+      "name": "reload ammo accounting unchanged",
+      "pass": true
+    },
+    {
+      "name": "support hand returns to grip",
+      "pass": true
+    },
+    {
+      "name": "reset restores hand pose",
+      "pass": true
+    }
+  ],
+  "failed": 0,
+  "passed": 8
+}

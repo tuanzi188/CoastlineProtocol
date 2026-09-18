@@ -1,0 +1,167 @@
+{
+  "checks": [
+    {
+      "detail": "1090",
+      "name": "world generated",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "six targets",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "menu initially open",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "start enables controls",
+      "pass": true
+    },
+    {
+      "detail": "(1.0, 2.899989, 32.0)",
+      "name": "spawn grounded",
+      "pass": true
+    },
+    {
+      "detail": "5.32922840118408",
+      "name": "walk forward",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "sprint faster than walk",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "jump leaves floor",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "jump lands safely",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "crouch changes capsule",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "uncrouch restores capsule",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "aim narrows field of view",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "aim release restores view",
+      "pass": true
+    },
+    {
+      "detail": "hits=3 kills=1",
+      "name": "hitscan damages and drops target",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "ammo decremented",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "reload begins",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "reload finishes with reserve accounting",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "target automatically resets",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "paused fire disabled",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "challenge starts and teleports",
+      "pass": true
+    },
+    {
+      "detail": "245",
+      "name": "combo scoring",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "pause freezes challenge timer",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "challenge completes",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "restart resets stats",
+      "pass": true
+    },
+    {
+      "detail": "(-23.00001, 3.055558, 20.56936)",
+      "name": "house doorway walkable",
+      "pass": true
+    },
+    {
+      "detail": "(-19.81298, 6.225646, 16.88)",
+      "name": "second-floor stairs climbable",
+      "pass": true
+    },
+    {
+      "detail": "(-29.46796, 2.881789, 21.0)",
+      "name": "house wall collision",
+      "pass": true
+    },
+    {
+      "detail": "(33.99986, 3.180697, -0.932506)",
+      "name": "warehouse entry walkable",
+      "pass": true
+    },
+    {
+      "detail": "(-31.0, 24.86452, -81.0)",
+      "name": "hill collision and elevation",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "water boundary recovers player",
+      "pass": true
+    }
+  ],
+  "engine": {
+    "build": "official",
+    "hash": "f62fdbde15035c5576dad93e586201f4d41ef0cb",
+    "hex": 263425,
+    "major": 4,
+    "minor": 5,
+    "patch": 1,
+    "status": "stable",
+    "string": "4.5.1-stable (official)",
+    "timestamp": 0
+  },
+  "failed": 0,
+  "passed": 30
+}

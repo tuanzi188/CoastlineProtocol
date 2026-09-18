@@ -1,0 +1,17 @@
+# Godot 4 工程缓存
+.godot/
+
+# 便携版 Godot 解压目录（单个 exe 155MB 超 GitHub 100MB 限制；仓库保留 tools/godot.zip）
+/tools/godot/
+
+# 网页导出产物（可用 Godot 重新导出，或按需单独发布）
+/build/
+
+# 日志与临时文件
+*.log
+*.tmp
+
+# Python 缓存（gdcheck 等工具）
+__pycache__/
+*.pyc
+*.pyd

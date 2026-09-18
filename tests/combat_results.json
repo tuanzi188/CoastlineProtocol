@@ -1,0 +1,196 @@
+{
+  "checks": [
+    {
+      "detail": "8788",
+      "name": "ground navigation generated",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "no training targets in scene",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "legacy mode keys removed",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "single match starts with nine survivors",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "survival loadout",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "armor absorbs partial damage",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "healing begins",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "damage interrupts without consuming medkit",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "healing completes and consumes one",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "fire input interrupts healing",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "no infinite ammo regeneration",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "nearby supply prompt",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "loot grants and removes once",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "loot cannot double collect",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "walking retained",
+      "pass": true
+    },
+    {
+      "detail": "9",
+      "name": "building route has waypoints",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "safe zone contracts",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "pause freezes timer and damage",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "AI sees unobstructed player",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "AI cannot see through wall",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "AI cannot shoot through wall",
+      "pass": true
+    },
+    {
+      "detail": "(9.245679, 2.946857, -10.74185)",
+      "name": "AI moves independently",
+      "pass": true
+    },
+    {
+      "detail": "shots=8 state=交战",
+      "name": "AI acquires target and fires",
+      "pass": true
+    },
+    {
+      "detail": "hp=37.6",
+      "name": "AI shots can damage player",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "bots acquire other bots",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "bots can damage each other",
+      "pass": true
+    },
+    {
+      "detail": "(-23.99598, 3.055413, 20.86419)",
+      "name": "AI navigates through house doorway",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "AI starts real reload",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "AI reload replenishes magazine",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "player hits AI with weapon ray",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "enemy receives real damage",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "elimination removes survivor and drops loot",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "dead enemy cannot eliminate twice",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "enemy does not respawn",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "player death shows defeat",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "restart restores survivors and clears death",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "last survivor wins",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "outside zone loses health",
+      "pass": true
+    }
+  ],
+  "failed": 0,
+  "passed": 38
+}

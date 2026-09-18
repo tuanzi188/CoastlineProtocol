@@ -1,0 +1,98 @@
+{
+  "checks": [
+    {
+      "name": "mobile profile enabled",
+      "pass": true
+    },
+    {
+      "name": "touch controls visible",
+      "pass": true
+    },
+    {
+      "name": "joystick moves forward",
+      "pass": true
+    },
+    {
+      "name": "upper joystick sprints",
+      "pass": true
+    },
+    {
+      "name": "look works while moving",
+      "pass": true
+    },
+    {
+      "name": "joystick release stops actions",
+      "pass": true
+    },
+    {
+      "name": "tap ADS latches",
+      "pass": true
+    },
+    {
+      "name": "fire and drag aim together",
+      "pass": true
+    },
+    {
+      "name": "secondary fire retains held action",
+      "pass": true
+    },
+    {
+      "name": "all fire released",
+      "pass": true
+    },
+    {
+      "name": "crouch toggle",
+      "pass": true
+    },
+    {
+      "name": "prone toggle drops capsule",
+      "pass": true
+    },
+    {
+      "name": "lean left holds",
+      "pass": false
+    },
+    {
+      "name": "lean releases",
+      "pass": true
+    },
+    {
+      "name": "crouch overrides prone",
+      "pass": true
+    },
+    {
+      "name": "reload touch",
+      "pass": true
+    },
+    {
+      "name": "reload completes",
+      "pass": true
+    },
+    {
+      "name": "heal touch",
+      "pass": true
+    },
+    {
+      "name": "pause releases all held inputs",
+      "pass": true
+    },
+    {
+      "name": "resume returns clean controls",
+      "pass": true
+    },
+    {
+      "name": "jump touch",
+      "pass": true
+    },
+    {
+      "name": "pickup touch grants supplies",
+      "pass": true
+    },
+    {
+      "name": "canceled touch releases fire",
+      "pass": true
+    }
+  ],
+  "failed": 1,
+  "passed": 22
+}

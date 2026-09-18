@@ -1,0 +1,67 @@
+[
+  {
+    "draw_calls": 2329.0,
+    "fps": 3.0,
+    "view": "01_menu"
+  },
+  {
+    "draw_calls": 3634.0,
+    "fps": 50.0,
+    "view": "02_spawn"
+  },
+  {
+    "draw_calls": 2335.0,
+    "fps": 49.0,
+    "view": "03_village"
+  },
+  {
+    "draw_calls": 2859.0,
+    "fps": 50.0,
+    "view": "04_warehouse"
+  },
+  {
+    "draw_calls": 2561.0,
+    "fps": 50.0,
+    "view": "05_range"
+  },
+  {
+    "draw_calls": 2015.0,
+    "fps": 51.0,
+    "view": "06_aim"
+  },
+  {
+    "draw_calls": 2616.0,
+    "fps": 42.0,
+    "view": "07_hill"
+  },
+  {
+    "draw_calls": 373.0,
+    "fps": 49.0,
+    "view": "08_coast"
+  },
+  {
+    "draw_calls": 4075.0,
+    "fps": 48.0,
+    "view": "12_course"
+  },
+  {
+    "draw_calls": 4060.0,
+    "fps": 50.0,
+    "view": "13_settings"
+  },
+  {
+    "draw_calls": 1988.0,
+    "fps": 56.0,
+    "view": "14_character_model"
+  },
+  {
+    "draw_calls": 1671.0,
+    "fps": 56.0,
+    "view": "15_vehicle_model"
+  },
+  {
+    "draw_calls": 4624.0,
+    "fps": 48.0,
+    "view": "16_course_result"
+  }
+]
