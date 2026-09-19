@@ -45,11 +45,21 @@ const GLB_HOUSES: Array[String] = [
 	"res://assets/buildings/building-sample-house-c.glb",
 ]
 var _house_scenes: Array[PackedScene] = []
+# Shared collision shapes — reused across all tree trunks so we don't allocate
+# a new CylinderShape3D per tree (205 trees × 1 shape each = 205 allocs gone).
+var _tree_col_shape: CylinderShape3D
+var _rock_col_shape: SphereShape3D
 
 
 func _ready() -> void:
 	rng.seed = 734109
 	_load_glb_scenes()
+	# Pre-allocate shared tree collision shape (unit size, scaled per-instance).
+	_tree_col_shape = CylinderShape3D.new()
+	_tree_col_shape.radius = 0.35
+	_tree_col_shape.height = 4.0
+	_rock_col_shape = SphereShape3D.new()
+	_rock_col_shape.radius = 1.2
 	_palette()
 	_environment()
 	_terrain()
@@ -82,13 +92,12 @@ func _glb_tree(pos: Vector3, s: float) -> void:
 	inst.scale = Vector3(sc, sc, sc)
 	add_child(inst)
 	# Simple cylinder collision around the trunk so bullets/players interact.
+	# Shared shape resource — scale the body instead of allocating per-tree shapes.
 	var body := StaticBody3D.new()
 	body.position = pos + Vector3(0, 2.0 * s, 0)
+	body.scale = Vector3(s, s, s)
 	var cs := CollisionShape3D.new()
-	var cyl := CylinderShape3D.new()
-	cyl.radius = 0.35 * s
-	cyl.height = 4.0 * s
-	cs.shape = cyl
+	cs.shape = _tree_col_shape
 	body.add_child(cs)
 	add_child(body)
 

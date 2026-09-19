@@ -42,6 +42,7 @@ var _closest_loot: Node3D
 var _last_zone: String=""
 var _test_mode: bool=false
 var _shot_lock: float=0
+var _loot_scan_left: float=0.0
 
 func _ready() -> void:
 	_test_mode="--combat-test" in OS.get_cmdline_user_args()
@@ -356,16 +357,22 @@ func _spawn_loot(point: Vector3) -> void:
 	loot.append(item)
 
 func _update_loot() -> void:
-	_closest_loot=null
-	var distance: float=2.4
-	for item: Node3D in loot:
-		if not is_instance_valid(item): continue
-		var d: float=player.position.distance_to(item.position)
-		if d<distance:
-			var q:=PhysicsRayQueryParameters3D.create(player.camera.global_position,item.position,1,[player.get_rid()])
-			if get_world_3d().direct_space_state.intersect_ray(q).is_empty():
-				distance=d
-				_closest_loot=item
+	# Throttle the raycast scan: running it every frame fires up to 8 physics
+	# queries per frame. 0.15 s is well below human reaction time for standing
+	# next to a loot box, and the distance pre-check already filters out far items.
+	_loot_scan_left -= get_process_delta_time()
+	if _loot_scan_left <= 0.0:
+		_loot_scan_left = 0.15
+		_closest_loot=null
+		var distance: float=2.4
+		for item: Node3D in loot:
+			if not is_instance_valid(item): continue
+			var d: float=player.position.distance_to(item.position)
+			if d<distance:
+				var q:=PhysicsRayQueryParameters3D.create(player.camera.global_position,item.position,1,[player.get_rid()])
+				if get_world_3d().direct_space_state.intersect_ray(q).is_empty():
+					distance=d
+					_closest_loot=item
 	if mobile_mode:
 		_set_hint("点按「拾取」  弹药 +60 · 医疗包 +1 · 护甲 +20" if is_instance_valid(_closest_loot) else "")
 	else:

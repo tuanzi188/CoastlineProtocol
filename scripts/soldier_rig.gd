@@ -1,4 +1,4 @@
-extends Node3D
+﻿extends Node3D
 ## KayKit-backed infantry: a real skinned humanoid driven by authored
 ## animation clips instead of procedural joint solving.
 ##
@@ -56,11 +56,46 @@ func build(variant: int = 0) -> void:
 	_player.play("Idle")
 	_player.advance(0.0)
 	_strip_gear()
+	_recolor_military()
 	_attach_rifle()
 	# Bone poses are only valid once the skin has been evaluated, so the stature
 	# fit is deferred to the first animate() call rather than done here.
 	_fit_stature()
 
+
+
+## Override the medieval palette with modern tactical colors so the KayKit
+## meshes read as soldiers rather than knights. We replace surface materials
+## on the body parts with flat military tones and hide the cape.
+func _recolor_military() -> void:
+	var body_mat := _paint(Color("4a5240"), 0.05)    # olive drab
+	var armor_mat := _paint(Color("3a4238"), 0.35)   # dark tactical vest
+	var head_mat := _paint(Color("6b5d4f"), 0.0)     # skin tone
+	var helmet_mat := _paint(Color("2e3329"), 0.3)  # dark helmet
+	var pants_mat := _paint(Color("2d3130"), 0.1)   # dark combat pants
+	var boot_mat := _paint(Color("1e1e1e"), 0.15)    # black boots
+	for node: Node in find_children("*", "MeshInstance3D", true, false):
+		var mi: MeshInstance3D = node as MeshInstance3D
+		var n: String = String(mi.name)
+		# Hide the cape — it reads as medieval.
+		if n.contains("Cape"):
+			mi.hide()
+			continue
+		var mat: StandardMaterial3D = body_mat
+		if n.contains("Head"):
+			mat = head_mat
+		elif n.contains("Helmet"):
+			mat = helmet_mat
+		elif n.contains("Body"):
+			mat = body_mat
+		elif n.contains("Leg"):
+			mat = pants_mat
+		elif n.contains("Arm"):
+			mat = armor_mat
+		elif n.contains("Boot") or n.contains("Foot") or n.contains("Shoe"):
+			mat = boot_mat
+		for i: int in range(mi.mesh.get_surface_count()):
+			mi.set_surface_override_material(i, mat)
 
 ## The imported file carries every weapon and shield in the pack on the hand
 ## slots, so anything that is not armour has to go before the rifle is added.

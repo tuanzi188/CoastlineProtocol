@@ -1,4 +1,4 @@
-extends CharacterBody3D
+﻿extends CharacterBody3D
 ## Self-contained coastal FPS controller. The owner controls active and mouse capture.
 
 signal shot_fired
@@ -577,22 +577,19 @@ func _fire() -> void:
 	var result: Dictionary = get_world_3d().direct_space_state.intersect_ray(query)
 	if not result.is_empty():
 		end = result["position"] as Vector3
-	# Check the barrel path first: the muzzle may already be beyond a thin wall.
-	var muzzle_origin: Vector3 = _muzzle.global_position
-	var barrel_query: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(origin, muzzle_origin, HIT_MASK)
-	barrel_query.exclude = [get_rid()]
-	barrel_query.hit_from_inside = true
-	var barrel_result: Dictionary = get_world_3d().direct_space_state.intersect_ray(barrel_query)
-	if not barrel_result.is_empty():
-		result = barrel_result
-	elif muzzle_origin.distance_squared_to(end) > 0.000001:
-		# The camera picks the aim point; the muzzle must have a clear path to it.
-		var muzzle_query: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(muzzle_origin, end, HIT_MASK)
-		muzzle_query.exclude = [get_rid()]
-		muzzle_query.hit_from_inside = true
-		var muzzle_result: Dictionary = get_world_3d().direct_space_state.intersect_ray(muzzle_query)
-		if not muzzle_result.is_empty():
-			result = muzzle_result
+		# Muzzle distance check: if the camera hit point is beyond the muzzle's
+		# reach (thin wall between camera and muzzle), the barrel doesn't actually
+		# reach it — fall back to the wall in front of the muzzle.
+		var muzzle_origin: Vector3 = _muzzle.global_position
+		var muzzle_dist_sq: float = origin.distance_squared_to(muzzle_origin)
+		if origin.distance_squared_to(end) > muzzle_dist_sq * 1.05:
+			var barrel_query: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(origin, muzzle_origin, HIT_MASK)
+			barrel_query.exclude = [get_rid()]
+			barrel_query.hit_from_inside = true
+			var barrel_result: Dictionary = get_world_3d().direct_space_state.intersect_ray(barrel_query)
+			if not barrel_result.is_empty():
+				result = barrel_result
+				end = result["position"] as Vector3
 	if not result.is_empty():
 		end = result["position"] as Vector3
 		var collider: Object = result["collider"] as Object
@@ -759,11 +756,11 @@ func _build_weapon() -> void:
 	var graphite: StandardMaterial3D = _material(Color("252e32"), 0.65, 0.38)
 	var steel: StandardMaterial3D = _material(Color("596468"), 0.78, 0.32)
 	var dark: StandardMaterial3D = _material(Color("101719"), 0.25, 0.65)
-	var sand: StandardMaterial3D = _material(Color("a39371"), 0.15, 0.76)
+	var sand: StandardMaterial3D = _material(Color("3a3a30"), 0.15, 0.76)
 	var rubber: StandardMaterial3D = _material(Color("30352e"), 0.0, 0.94)
 	var teal: StandardMaterial3D = _material(Color("398c87"), 0.3, 0.48)
 	var fabric: StandardMaterial3D = _material(Color("485c58"), 0.0, 0.95)
-	var glove: StandardMaterial3D = _material(Color("636553"), 0.0, 0.9)
+	var glove: StandardMaterial3D = _material(Color("2a2a2a"), 0.0, 0.9)
 	var sight_dot: StandardMaterial3D = _material(Color("8cdec6"), 0.0, 0.5, true)
 	# Angular receiver with a two-tone upper, side plates and service details.
 	_box(_weapon, Vector3(0.105, 0.12, 0.33), Vector3(0.0, -0.02, -0.10), graphite)

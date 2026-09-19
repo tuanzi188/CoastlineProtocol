@@ -1,4 +1,4 @@
-extends CanvasLayer
+﻿extends CanvasLayer
 
 signal start_requested
 signal resume_requested
@@ -113,6 +113,7 @@ var _reload_elapsed: float = 0.0
 var _zone: String = "海岸"
 var _zone_timer: float = 0.0
 var _signature_shown: PackedFloat64Array = PackedFloat64Array()
+var _signature_buf: PackedFloat64Array = PackedFloat64Array([0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0])
 var _viewport_shown: Rect2 = Rect2()
 
 

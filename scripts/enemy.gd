@@ -1,4 +1,4 @@
-extends CharacterBody3D
+﻿extends CharacterBody3D
 
 signal eliminated(bot: Node3D, killer: Node)
 
@@ -11,7 +11,7 @@ var health: int = 100
 var dead: bool = false
 var active: bool = false
 var last_headshot: bool = false
-var state: String = "巡逻"
+var state: String = "宸￠€?
 var ammo: int = 24
 var shots_fired: int = 0
 var damage_dealt: int = 0
@@ -53,6 +53,9 @@ var _separation: Vector3 = Vector3.ZERO
 # object and exclude list keeps that from allocating on each cast.
 var _ray_query: PhysicsRayQueryParameters3D
 var _self_rid: Array[RID] = []
+# Cached reference to the bots array on the game node 鈥?avoids Dictionary
+# lookups on every frame when iterating siblings for separation and hearing.
+var _bots_ref: Array = []
 
 
 func _ready() -> void:
@@ -85,6 +88,9 @@ func _ready() -> void:
 	_ray_query.hit_from_inside = true
 	_self_rid = [get_rid()]
 	_ray_query.exclude = _self_rid
+	# Cache the bots array reference once 鈥?it never changes after spawn.
+	if is_instance_valid(game):
+		_bots_ref = game.get("bots") as Array
 
 
 func _physics_process(delta: float) -> void:
@@ -132,11 +138,11 @@ func _physics_process(delta: float) -> void:
 	var escaping: bool = offset.length() > maxf(1.0, radius - 5.0)
 	var speed: float = 2.5
 	if escaping:
-		state = "进圈"
+		state = "杩涘湀"
 		_set_goal(_ground(center + offset.normalized() * maxf(0.0, radius * 0.60)))
 		speed = 4.3
 	elif _visible_target and is_instance_valid(target):
-		state = "换弹" if _reload_left > 0.0 else "交战"
+		state = "鎹㈠脊" if _reload_left > 0.0 else "浜ゆ垬"
 		speed = 4.3 if _reload_left > 0.0 or health < 35 else 2.5
 		if _strafe_left <= 0.0:
 			_strafe_left = 2.0
@@ -151,7 +157,7 @@ func _physics_process(delta: float) -> void:
 				advance = -7.0
 			_set_goal(_ground(global_position + toward * advance + sideways * _rng.randf_range(3.0, 6.0)))
 	elif _memory_left > 0.0:
-		state = "换弹" if _reload_left > 0.0 else "搜索"
+		state = "鎹㈠脊" if _reload_left > 0.0 else "鎼滅储"
 		_set_goal(_last_seen)
 		speed = 4.3
 		if _flat_distance(global_position, _last_seen) < 1.2:
@@ -159,7 +165,7 @@ func _physics_process(delta: float) -> void:
 			rotation.y += delta * 0.8
 	else:
 		target = null
-		state = "换弹" if _reload_left > 0.0 else "巡逻"
+		state = "鎹㈠脊" if _reload_left > 0.0 else "宸￠€?
 		if not _has_goal or _flat_distance(global_position, _goal) < 1.2:
 			var nav: Object = game.get("nav") as Object
 			var point: Vector3 = nav.call("random_point", _rng) as Vector3
@@ -190,7 +196,7 @@ func _scan() -> void:
 	var player: Node3D = game.get("player") as Node3D
 	if is_instance_valid(player):
 		candidates.append(player)
-	var bots: Array = game.get("bots") as Array
+	var bots: Array = _bots_ref
 	for entry: Variant in bots:
 		var bot: Node3D = entry as Node3D
 		if is_instance_valid(bot):
@@ -245,7 +251,7 @@ func hear_shot(source: Vector3, shooter: Node3D) -> void:
 	# Store only the sound location; do not acquire or track the unseen shooter.
 	_last_seen = _ground(source)
 	_memory_left = 6.0
-	state = "搜索"
+	state = "鎼滅储"
 	_set_goal(_last_seen)
 
 
@@ -280,7 +286,7 @@ func _move(delta: float, speed: float) -> void:
 		else:
 			_has_goal = false
 	var push: Vector3 = Vector3.ZERO
-	var bots: Array = game.get("bots") as Array
+	var bots: Array = _bots_ref
 	for entry: Variant in bots:
 		var other: Node3D = entry as Node3D
 		if not is_instance_valid(other) or other == self or bool(other.get("dead")):
@@ -364,7 +370,7 @@ func _fire() -> void:
 		end = hit["position"] as Vector3
 		var collider: Node3D = hit["collider"] as Node3D
 		var player: Node3D = game.get("player") as Node3D
-		var bots: Array = game.get("bots") as Array
+		var bots: Array = _bots_ref
 		if is_instance_valid(collider) and (collider == player or bots.has(collider)) and _is_combatant(collider) and collider.has_method("take_damage"):
 			var before: float = float(collider.get("health"))
 			collider.call("take_damage", 8, global_position, self)
@@ -374,7 +380,7 @@ func _fire() -> void:
 	var hearer: Node3D = game.get("player") as Node3D
 	var ear: Vector3 = hearer.camera.global_position if is_instance_valid(hearer) else global_position
 	Audio.gunshot(start, _sound_blocked(ear, start), ear.distance_to(start) > 42.0)
-	var listeners: Array = game.get("bots") as Array
+	var listeners: Array = _bots_ref
 	for entry: Variant in listeners:
 		var listener: Node3D = entry as Node3D
 		if is_instance_valid(listener) and listener != self and listener.has_method("hear_shot"):
@@ -408,7 +414,7 @@ func _apply_damage(amount: int, source: Vector3, attacker: Node) -> void:
 	if health <= 0:
 		dead = true
 		active = false
-		state = "阵亡"
+		state = "闃典骸"
 		target = null
 		velocity = Vector3.ZERO
 		_capsule.set_deferred("disabled", true)
@@ -419,7 +425,7 @@ func _apply_damage(amount: int, source: Vector3, attacker: Node) -> void:
 		_last_seen = _ground(source)
 		_memory_left = 6.0
 		_set_goal(_last_seen)
-		state = "搜索"
+		state = "鎼滅储"
 
 
 ## Wall occlusion for the listener, not the target: a shot that is perfectly
