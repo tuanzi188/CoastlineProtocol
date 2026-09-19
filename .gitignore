@@ -6,10 +6,18 @@
 
 # 网页导出产物（可用 Godot 重新导出，或按需单独发布）
 /build/
+# Godot Web 导出构建文件（体积大、可由导出流程再生成，不入库）
+/index.wasm
+/index.pck
+
+# Godot 导入缓存与二进制资产
+*.import
+*.glb
 
 # 日志与临时文件
 *.log
 *.tmp
+*.bak
 
 # Python 缓存（gdcheck 等工具）
 __pycache__/

@@ -1,0 +1,12 @@
+# 语言统计与二进制标记
+
+# 内置的 gdcheck 检查工具为第三方 vendored 代码，不参与语言统计
+tools/gdcheck/** linguist-vendored
+
+# Godot Web 导出生成的 JS 加载器，不参与语言统计
+/index.js linguist-vendored
+
+# 二进制资产显式标记
+*.wasm binary
+*.pck binary
+*.glb binary
