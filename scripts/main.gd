@@ -387,8 +387,7 @@ func _collect_loot() -> void:
 	hud.notify_message("已搜取弹药、医疗包和护甲补给")
 
 func _build_status() -> void:
-	var font:=SystemFont.new()
-	font.font_names=PackedStringArray(["Microsoft YaHei UI","Microsoft YaHei","Segoe UI"])
+	var font: FontFile = load("res://assets/simhei.ttf")
 	_status=Label.new()
 	_status.position=Vector2(475,94)
 	_status.size=Vector2(420,60)

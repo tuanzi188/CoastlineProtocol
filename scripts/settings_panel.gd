@@ -98,9 +98,7 @@ func reset_defaults() -> void:
 
 
 func _build_ui() -> void:
-	var font: SystemFont = SystemFont.new()
-	font.font_names = PackedStringArray(["Microsoft YaHei UI", "Microsoft YaHei"])
-	font.allow_system_fallback = true
+	var font: FontFile = load("res://assets/simhei.ttf")
 	theme = Theme.new()
 	theme.default_font = font
 	theme.default_font_size = 14

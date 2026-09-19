@@ -17,7 +17,7 @@ var menu_controls: Control
 var result_panel: PanelContainer
 var result_text: Label
 var _marker: Label3D
-var _font: SystemFont
+var _font: FontFile
 var _advancing: bool = false
 var _elapsed: float = 0
 const STAGE_NAMES: Array[String] = ["01 / 房区清剿", "02 / 仓库突入", "03 / 山坡决胜"]
@@ -25,8 +25,7 @@ const DESTINATIONS: Array[Vector3] = [Vector3(-23,0,25),Vector3(34,0,-4),Vector3
 
 func setup(owner_game: Node3D) -> void:
 	game = owner_game
-	_font = SystemFont.new()
-	_font.font_names = PackedStringArray(["Microsoft YaHei UI","Microsoft YaHei","Segoe UI"])
+	_font = load("res://assets/simhei.ttf")
 	var surface: Control = game.hud.get_node("TacticalHUD")
 	menu_controls = Control.new()
 	menu_controls.mouse_filter = Control.MOUSE_FILTER_IGNORE

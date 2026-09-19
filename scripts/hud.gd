@@ -57,7 +57,7 @@ var _game_properties: Dictionary = {}
 var _player: Node3D
 var _world: Node3D
 var _surface: HUDSurface
-var _font: SystemFont
+var _font: FontFile
 var _buttons: Array[Button] = []
 var _properties: Dictionary = {}
 var _configured: bool = false
@@ -212,9 +212,7 @@ func set_active(value: bool) -> void:
 func _ensure_ui() -> void:
 	if is_instance_valid(_surface):
 		return
-	_font = SystemFont.new()
-	_font.font_names = PackedStringArray(["Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI"])
-	_font.allow_system_fallback = true
+	_font = load("res://assets/simhei.ttf")
 	_surface = HUDSurface.new()
 	_surface.name = "TacticalHUD"
 	_surface.host = self

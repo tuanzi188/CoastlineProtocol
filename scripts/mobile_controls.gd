@@ -32,7 +32,7 @@ var _enabled: bool = false
 var _focused: bool = true
 var _held_actions: Dictionary = {}
 var _tap_release_frames: Dictionary = {}
-var _font: SystemFont
+var _font: FontFile
 
 
 func _ready() -> void:
@@ -40,8 +40,7 @@ func _ready() -> void:
 	focus_mode = Control.FOCUS_NONE
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	size = Vector2(1280, 720)
-	_font = SystemFont.new()
-	_font.font_names = PackedStringArray(["Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans CJK SC", "sans-serif"])
+	_font = load("res://assets/simhei.ttf")
 	_enabled = false
 	_sync_enabled()
 

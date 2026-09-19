@@ -106,17 +106,17 @@
       "pass": true
     },
     {
-      "detail": "(8.155804, 2.939777, -12.06467)",
+      "detail": "(9.17418, 2.946968, -10.81088)",
       "name": "AI moves independently",
       "pass": true
     },
     {
-      "detail": "shots=10 state=交战",
+      "detail": "shots=9 state=交战",
       "name": "AI acquires target and fires",
       "pass": true
     },
     {
-      "detail": "hp=42.8",
+      "detail": "hp=53.2",
       "name": "AI shots can damage player",
       "pass": true
     },
@@ -131,7 +131,7 @@
       "pass": true
     },
     {
-      "detail": "(-23.92624, 3.108459, 21.02629)",
+      "detail": "(-23.92611, 3.108458, 21.02672)",
       "name": "AI navigates through house doorway",
       "pass": true
     },

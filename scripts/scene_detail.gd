@@ -374,7 +374,6 @@ func _label(parent: Node3D, pos: Vector3, text: String, pixel: float) -> void:
 	label.outline_modulate = Color(0.05, 0.07, 0.08, 0.85)
 	label.no_depth_test = false
 	label.double_sided = false
-	var font := SystemFont.new()
-	font.font_names = PackedStringArray(["Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI"])
+	var font: FontFile = load("res://assets/simhei.ttf")
 	label.font = font
 	parent.add_child(label)

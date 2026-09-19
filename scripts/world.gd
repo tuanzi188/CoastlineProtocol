@@ -730,8 +730,7 @@ func _label(parent: Node3D,pos: Vector3,text: String,pixel: float) -> void:
 	label.no_depth_test=false
 	# The mirrored backface reads as ghost text through thin boards.
 	label.double_sided=false
-	var font:=SystemFont.new()
-	font.font_names=PackedStringArray(["Microsoft YaHei UI","Microsoft YaHei","Segoe UI"])
+	var font: FontFile = load("res://assets/simhei.ttf")
 	label.font=font
 	parent.add_child(label)
 
