@@ -1,4 +1,4 @@
-extends Node3D
+﻿extends Node3D
 
 var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var materials: Dictionary = {}
@@ -7,8 +7,49 @@ var visited: Dictionary = {}
 var terrain: StaticBody3D
 var water: MeshInstance3D
 
+# CC0 low-poly nature props (Kenney Nature Kit, CC0).
+const GLB_TREES: Array[String] = [
+	"res://assets/nature/tree_palmTall.glb",
+	"res://assets/nature/tree_palmShort.glb",
+	"res://assets/nature/tree_oak.glb",
+	"res://assets/nature/tree_tall.glb",
+	"res://assets/nature/tree_detailed.glb",
+	"res://assets/nature/tree_fat.glb",
+	"res://assets/nature/tree_pineTallA.glb",
+	"res://assets/nature/tree_pineSmallA.glb",
+]
+const GLB_BUSHES: Array[String] = [
+	"res://assets/nature/plant_bush.glb",
+	"res://assets/nature/plant_bushLarge.glb",
+	"res://assets/nature/plant_bushSmall.glb",
+]
+const GLB_ROCKS: Array[String] = [
+	"res://assets/nature/rock_largeA.glb",
+	"res://assets/nature/rock_largeB.glb",
+	"res://assets/nature/rock_smallA.glb",
+	"res://assets/nature/rock_smallB.glb",
+	"res://assets/nature/rock_tallA.glb",
+]
+var _tree_scenes: Array[PackedScene] = []
+var _bush_scenes: Array[PackedScene] = []
+var _rock_scenes: Array[PackedScene] = []
+const GLB_HOUSES: Array[String] = [
+	"res://assets/buildings/building-type-a.glb",
+	"res://assets/buildings/building-type-b.glb",
+	"res://assets/buildings/building-type-c.glb",
+	"res://assets/buildings/building-type-d.glb",
+	"res://assets/buildings/building-type-e.glb",
+	"res://assets/buildings/building-type-f.glb",
+	"res://assets/buildings/building-sample-house-a.glb",
+	"res://assets/buildings/building-sample-house-b.glb",
+	"res://assets/buildings/building-sample-house-c.glb",
+]
+var _house_scenes: Array[PackedScene] = []
+
+
 func _ready() -> void:
 	rng.seed = 734109
+	_load_glb_scenes()
 	_palette()
 	_environment()
 	_terrain()
@@ -21,15 +62,125 @@ func _ready() -> void:
 	_details()
 	_batch_static_boxes()
 
+func _load_glb_scenes() -> void:
+	for p: String in GLB_TREES:
+		if ResourceLoader.exists(p): _tree_scenes.append(load(p))
+	for p: String in GLB_BUSHES:
+		if ResourceLoader.exists(p): _bush_scenes.append(load(p))
+	for p: String in GLB_ROCKS:
+		if ResourceLoader.exists(p): _rock_scenes.append(load(p))
+	for p: String in GLB_HOUSES:
+		if ResourceLoader.exists(p): _house_scenes.append(load(p))
+
+func _glb_tree(pos: Vector3, s: float) -> void:
+	if _tree_scenes.is_empty(): _tree_fallback(pos, s)
+	var scene: PackedScene = _tree_scenes[rng.randi() % _tree_scenes.size()]
+	var inst: Node3D = scene.instantiate()
+	inst.position = pos
+	inst.rotation.y = rng.randf() * TAU
+	var sc: float = s * rng.randf_range(1.6, 2.4)
+	inst.scale = Vector3(sc, sc, sc)
+	add_child(inst)
+	# Simple cylinder collision around the trunk so bullets/players interact.
+	var body := StaticBody3D.new()
+	body.position = pos + Vector3(0, 2.0 * s, 0)
+	var cs := CollisionShape3D.new()
+	var cyl := CylinderShape3D.new()
+	cyl.radius = 0.35 * s
+	cyl.height = 4.0 * s
+	cs.shape = cyl
+	body.add_child(cs)
+	add_child(body)
+
+func _glb_rock(pos: Vector3, s: float) -> void:
+	if _rock_scenes.is_empty(): return
+	var scene: PackedScene = _rock_scenes[rng.randi() % _rock_scenes.size()]
+	var inst: Node3D = scene.instantiate()
+	inst.position = pos
+	inst.rotation.y = rng.randf() * TAU
+	var sc: float = s * rng.randf_range(1.5, 2.5)
+	inst.scale = Vector3(sc, sc * 0.7, sc)
+	add_child(inst)
+	var body := StaticBody3D.new()
+	body.position = pos + Vector3(0, 0.8 * s, 0)
+	var cs := CollisionShape3D.new()
+	var sph := SphereShape3D.new()
+	sph.radius = 1.2 * s
+	cs.shape = sph
+	body.add_child(cs)
+	add_child(body)
+
+func _tree_fallback(pos: Vector3, s: float) -> void:
+	_cylinder(self,pos+Vector3(0,2.5*s,0),0.24*s,5*s,"trunk",true)
+	for j: int in range(4):
+		var crown:=MeshInstance3D.new()
+		var sm:=SphereMesh.new()
+		sm.radial_segments=8
+		sm.rings=4
+		crown.mesh=sm
+		crown.scale=Vector3(3.8,2.7,3.5)*s*(1.0 if j==0 else 0.68)
+		crown.position=pos+Vector3(0,5.7*s,0) if j==0 else pos+Vector3(sin(j*2.1)*1.9,4.8,cos(j*2.1)*1.6)*s
+		crown.material_override=mat("leaf_light" if j%2==0 else "leaf")
+		add_child(crown)
+
+func _glb_house(pos: Vector3, angle: float, idx: int) -> void:
+	var y: float = get_height(pos.x, pos.z)
+	if _house_scenes.is_empty(): return
+	var scene: PackedScene = _house_scenes[idx % _house_scenes.size()]
+	var root := Node3D.new()
+	root.position = Vector3(pos.x, y, pos.z)
+	root.rotation.y = angle
+	add_child(root)
+	var inst: Node3D = scene.instantiate()
+	inst.scale = Vector3(1.35, 1.35, 1.35)
+	root.add_child(inst)
+	# Enterable: 4 walls with front door gap + floor.
+	var W: float = 8.5
+	var D: float = 7.5
+	var H: float = 4.0
+	var T: float = 0.25
+	var door_w: float = 1.6
+	var body := StaticBody3D.new()
+	root.add_child(body)
+	var wall_data = [
+		Vector3(-W/2, H/2, 0), Vector3(T, H, D),
+		Vector3(W/2, H/2, 0), Vector3(T, H, D),
+		Vector3(0, H/2, -D/2), Vector3(W, H, T),
+	]
+	var seg_w: float = (W - door_w) / 2.0
+	wall_data.append(Vector3(-(door_w/2 + seg_w/2), H/2, D/2))
+	wall_data.append(Vector3(seg_w, H, T))
+	wall_data.append(Vector3(door_w/2 + seg_w/2, H/2, D/2))
+	wall_data.append(Vector3(seg_w, H, T))
+	for i: int in range(0, wall_data.size(), 2):
+		var cs := CollisionShape3D.new()
+		var box := BoxShape3D.new()
+		box.size = wall_data[i+1]
+		cs.shape = box
+		cs.position = wall_data[i]
+		body.add_child(cs)
+	var floor_cs := CollisionShape3D.new()
+	var floor_box := BoxShape3D.new()
+	floor_box.size = Vector3(W, 0.2, D)
+	floor_cs.shape = floor_box
+	floor_cs.position = Vector3(0, 0.1, 0)
+	body.add_child(floor_cs)
+
 func _batch_static_boxes() -> void:
 	var batches: Dictionary = {}
+	# materials.values() would allocate and linear-scan once per prop; a set of
+	# instance ids makes the membership test O(1) across the whole island.
+	var batchable: Dictionary = {}
+	for material: Material in materials.values():
+		batchable[material.get_instance_id()] = true
 	for node: Node in find_children("*", "MeshInstance3D", true, false):
 		var instance := node as MeshInstance3D
-		if not instance.mesh is BoxMesh or not materials.values().has(instance.material_override):
+		var override: Material = instance.material_override
+		if not instance.mesh is BoxMesh or override == null or not batchable.has(override.get_instance_id()):
 			continue
-		var key: int = instance.material_override.get_instance_id()
+		var key: int = override.get_instance_id()
 		if not batches.has(key):
-			batches[key] = {"material":instance.material_override,"transforms":[]}
+			batches[key] = {"material":override,"transforms":[]}
 		var transform: Transform3D = global_transform.affine_inverse() * instance.global_transform
 		transform.basis = transform.basis.scaled_local((instance.mesh as BoxMesh).size)
 		batches[key]["transforms"].append(transform)
@@ -96,6 +247,17 @@ func _palette() -> void:
 	var glass: StandardMaterial3D = materials["glass"]
 	glass.metallic = 0.3
 	glass.roughness = 0.22
+	# Painted road markings are flat quads, so at prone eye height the nearest
+	# dash stretches across the frame. Fading them out within arm's reach keeps
+	# the perspective honest without the smear.
+	var road_paint := StandardMaterial3D.new()
+	road_paint.albedo_color = Color("ded8ba")
+	road_paint.roughness = 0.87
+	road_paint.distance_fade_enabled = true
+	road_paint.distance_fade_mode = BaseMaterial3D.DISTANCE_FADE_PIXEL_ALPHA
+	road_paint.distance_fade_phase_long = 6.0
+	road_paint.distance_fade_phase_short = 1.8
+	materials["road_paint"] = road_paint
 
 func _environment() -> void:
 	var sky_mat := ProceduralSkyMaterial.new()
@@ -226,10 +388,10 @@ func _roads() -> void:
 	_ribbon(Vector2(1,2),Vector2(61,2),5.5,"road")
 	for x: int in range(-124,127,6):
 		if abs(x) < 7: continue
-		_box(self,Vector3(x,get_height(x,40)+0.07,40),Vector3(1.8,0.015,0.16),"paint",false)
+		_box(self,Vector3(x,get_height(x,40)+0.07,40),Vector3(1.8,0.015,0.16),"road_paint",false)
 	for z: int in range(-41,64,6):
 		if abs(z-40) < 7 or abs(z-2) < 5: continue
-		_box(self,Vector3(1,get_height(1,z)+0.07,z),Vector3(0.16,0.015,1.8),"paint",false)
+		_box(self,Vector3(1,get_height(1,z)+0.07,z),Vector3(0.16,0.015,1.8),"road_paint",false)
 	for x: int in range(-105,116,16):
 		if x > 44 and x < 67: continue
 		var y: float = get_height(x,46)
@@ -255,11 +417,11 @@ func _ribbon(a: Vector2,b: Vector2,width: float,key: String) -> void:
 	add_child(mi)
 
 func _town() -> void:
-	_house(Vector3(-23,0,21),Vector3(12,7.1,10),"ivory",0)
-	_house(Vector3(-45,0,17),Vector3(11,7.0,11),"blue",0)
-	_house(Vector3(-24,0,-3),Vector3(12,4.0,10),"blue",0)
-	_house(Vector3(-49,0,-10),Vector3(13,4.1,11),"ivory",PI/2)
-	_house(Vector3(-78,0,20),Vector3(10,4.0,9),"ivory",0.1)
+	_glb_house(Vector3(-23,0,21),0,0)
+	_glb_house(Vector3(-45,0,17),0,1)
+	_glb_house(Vector3(-24,0,-3),0,2)
+	_glb_house(Vector3(-49,0,-10),PI/2,3)
+	_glb_house(Vector3(-78,0,20),0.1,4)
 	for pos: Vector3 in [Vector3(-15,0,31),Vector3(-35,0,4),Vector3(-65,0,23)]:
 		_crate(pos,Vector3(1.4,1.3,1.4))
 	for x: int in range(-56,-12,4):
@@ -431,27 +593,17 @@ func _nature() -> void:
 		if x>-89 and x<78 and z>-60 and z<34: continue
 		if Vector2(x+34,z+89).length()<13: continue
 		if absf(x-(-5+(z+42)*0.64))<5 and z<-40 and z>-109: continue
-		_tree(Vector3(x,y,z),rng.randf_range(0.85,1.5),i%4==0)
+		_glb_tree(Vector3(x,y,z),rng.randf_range(0.85,1.5))
 	for i: int in range(105):
 		var x: float=rng.randf_range(-135,136)
 		var z: float=rng.randf_range(-143,82)
 		var y: float=get_height(x,z)
 		if y<0.6 or absf(z-40)<9 or absf(x-1)<7: continue
 		if x>-85 and x<77 and z>-60 and z<36: continue
-		var mi:=MeshInstance3D.new()
-		var sphere:=SphereMesh.new()
-		sphere.radial_segments=7
-		sphere.rings=3
-		mi.mesh=sphere
-		mi.material_override=mat("rock")
-		mi.position=Vector3(x,y+0.3,z)
-		mi.scale=Vector3(rng.randf_range(1.2,3.5),rng.randf_range(0.8,2.1),rng.randf_range(1.0,3.0))
-		mi.rotation.y=rng.randf()*TAU
-		add_child(mi)
-		mi.create_convex_collision()
+		_glb_rock(Vector3(x,y+0.2,z),rng.randf_range(0.8,1.6))
 	for pos: Vector3 in [Vector3(-11,0,28),Vector3(-64,0,40),Vector3(19,0,42),Vector3(-40,0,60),Vector3(72,0,46),Vector3(-67,0,-27)]:
 		pos.y=get_height(pos.x,pos.z)
-		_tree(pos,1.1,false)
+		_glb_tree(pos,1.1)
 	# Instanced meadow blades add close-range texture without hundreds of draw calls.
 	var mm:=MultiMesh.new()
 	mm.transform_format=MultiMesh.TRANSFORM_3D

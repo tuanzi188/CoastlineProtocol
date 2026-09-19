@@ -6,7 +6,7 @@
     },
     {
       "name": "touch controls visible",
-      "pass": true
+      "pass": false
     },
     {
       "name": "joystick moves forward",
@@ -30,11 +30,11 @@
     },
     {
       "name": "fire and drag aim together",
-      "pass": true
+      "pass": false
     },
     {
       "name": "secondary fire retains held action",
-      "pass": true
+      "pass": false
     },
     {
       "name": "all fire released",
@@ -42,10 +42,14 @@
     },
     {
       "name": "crouch toggle",
-      "pass": true
+      "pass": false
     },
     {
       "name": "prone toggle drops capsule",
+      "pass": false
+    },
+    {
+      "name": "prone toggle restores stance",
       "pass": true
     },
     {
@@ -58,11 +62,11 @@
     },
     {
       "name": "crouch overrides prone",
-      "pass": true
+      "pass": false
     },
     {
       "name": "reload touch",
-      "pass": true
+      "pass": false
     },
     {
       "name": "reload completes",
@@ -70,7 +74,7 @@
     },
     {
       "name": "heal touch",
-      "pass": true
+      "pass": false
     },
     {
       "name": "pause releases all held inputs",
@@ -78,21 +82,21 @@
     },
     {
       "name": "resume returns clean controls",
-      "pass": true
+      "pass": false
     },
     {
       "name": "jump touch",
-      "pass": true
+      "pass": false
     },
     {
       "name": "pickup touch grants supplies",
-      "pass": true
+      "pass": false
     },
     {
       "name": "canceled touch releases fire",
       "pass": true
     }
   ],
-  "failed": 1,
-  "passed": 22
+  "failed": 12,
+  "passed": 12
 }

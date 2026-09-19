@@ -13,6 +13,32 @@ const AMBER: Color = Color("e9b76e")
 const PANEL: Color = Color(0.025, 0.047, 0.056, 0.86)
 const HAIRLINE: Color = Color(0.8, 0.93, 0.94, 0.21)
 
+# The samplers probe several legacy property names per field every frame. These
+# lists are constants so the lookup never allocates an Array to read one number.
+const PROP_HEALTH: Array[String] = ["health", "current_health", "hp"]
+const PROP_ARMOR: Array[String] = ["armor"]
+const PROP_MEDKITS: Array[String] = ["medkits"]
+const PROP_HEALING: Array[String] = ["healing"]
+const PROP_HEAL_LEFT: Array[String] = ["heal_left"]
+const PROP_AMMO: Array[String] = ["ammo", "ammo_in_mag", "magazine_ammo", "current_ammo", "mag_ammo"]
+const PROP_RESERVE: Array[String] = ["reserve_ammo", "ammo_reserve", "reserve"]
+const PROP_SHOTS: Array[String] = ["shots_fired", "total_shots", "shots"]
+const PROP_HITS: Array[String] = ["hits", "shots_hit", "total_hits"]
+const PROP_KILLS: Array[String] = ["kills", "total_kills"]
+const PROP_ADS: Array[String] = ["is_ads", "ads", "aiming", "is_aiming"]
+const PROP_CROUCH: Array[String] = ["is_crouching", "crouching", "crouched"]
+const PROP_PRONE: Array[String] = ["prone", "is_prone"]
+const PROP_LEAN: Array[String] = ["lean"]
+const PROP_VELOCITY: Array[String] = ["velocity"]
+const PROP_RUNNING: Array[String] = ["is_sprinting", "sprinting", "is_running", "running"]
+const PROP_RELOADING: Array[String] = ["is_reloading", "reloading"]
+const PROP_RELOAD_DURATION: Array[String] = ["reload_duration", "reload_time"]
+const PROP_RELOAD_LEFT: Array[String] = ["_reload_left", "reload_time_left", "reload_remaining", "reload_timer"]
+const PROP_RELOAD_PROGRESS: Array[String] = ["reload_progress"]
+const PROP_OWNED_LABELS: Array[String] = ["_status", "_loot_hint"]
+const COMPASS_LABELS: Array[String] = ["北 N", "NE", "东 E", "SE", "南 S", "SW", "西 W", "NW"]
+const MENU_CHIPS: Array[String] = ["自主巡逻", "交火追击", "安全区", "补给"]
+
 # Drawing uses a fixed logical canvas; actual viewport dimensions set its scale.
 class HUDSurface extends Control:
 	var host: Node
@@ -42,7 +68,6 @@ var _hit_time: float = 0.0
 var _kill_hit: bool = false
 var _message: String = ""
 var _message_time: float = 0.0
-var _clock: float = 0.0
 var _heading: float = 0.0
 var _position: Vector3 = Vector3.ZERO
 var _health: float = 0.0
@@ -87,6 +112,8 @@ var _reload_progress: float = 0.0
 var _reload_elapsed: float = 0.0
 var _zone: String = "海岸"
 var _zone_timer: float = 0.0
+var _signature_shown: PackedFloat64Array = PackedFloat64Array()
+var _viewport_shown: Rect2 = Rect2()
 
 
 func _ready() -> void:
@@ -198,6 +225,9 @@ func _ensure_ui() -> void:
 	_add_button(Rect2(40.0, 421.0, 232.0, 42.0), false, _on_restart)
 	_add_button(Rect2(284.0, 421.0, 112.0, 42.0), false, _on_quit)
 	_update_buttons()
+	# A freshly built Control defaults to scale 1, so the cached viewport fit
+	# must be invalidated before the next _fit_viewport() can be skipped.
+	_viewport_shown = Rect2()
 	_fit_viewport()
 
 
@@ -267,6 +297,9 @@ func _on_quit() -> void:
 
 func _fit_viewport() -> void:
 	var viewport_rect: Rect2 = get_viewport().get_visible_rect()
+	if viewport_rect == _viewport_shown:
+		return
+	_viewport_shown = viewport_rect
 	var viewport_size: Vector2 = viewport_rect.size
 	if _game_flag("mobile_mode"):
 		var available: Rect2 = viewport_rect
@@ -290,7 +323,6 @@ func _process(delta: float) -> void:
 	if not is_instance_valid(_surface):
 		return
 	_fit_viewport()
-	_clock += delta
 	_hit_time = maxf(0.0, _hit_time - delta)
 	_message_time = maxf(0.0, _message_time - delta)
 	_damage_time = maxf(0.0, _damage_time - delta)
@@ -299,11 +331,44 @@ func _process(delta: float) -> void:
 		_sample_game()
 	if _game_flag("mobile_mode"):
 		# These desktop-only labels are owned and updated by main.
-		for property: String in ["_status", "_loot_hint"]:
+		for property: String in PROP_OWNED_LABELS:
 			var label: Variant = _object_value(game, _game_properties, property, null)
 			if is_instance_valid(label) and label is Control:
 				label.hide()
-	_surface.queue_redraw()
+	# The tactical layer is a single CanvasItem, so one changed digit rebuilds
+	# every glyph on it. Re-queue only when something that reaches the screen
+	# differs; explicit queue_redraw() calls from the notifiers stay untouched.
+	# The two clocks enter already at their rendered precision, because rounding
+	# them here instead of matching _time_text and ceilf would gate on a value
+	# that differs from the digit actually on screen.
+	var signature: PackedFloat64Array = PackedFloat64Array([
+		float(_configured), float(_active), float(_menu_visible), float(_pause_menu),
+		float(_result_visible), float(_game_flag("mobile_mode")),
+		float(is_instance_valid(_object_value(game, _game_properties, "_closest_loot", null))),
+		_snapped(_hit_time), float(_kill_hit), _snapped(_message_time), float(hash(_message) % 1000000),
+		_snapped(_damage_time), _snapped(_damage_strength), _snapped(_damage_source.x), _snapped(_damage_source.z),
+		_snapped(_health), float(_health_known), _snapped(_armor), float(_medkits),
+		float(_healing), _snapped(_heal_left), float(_alive_count), float(int(_elapsed)),
+		float(hash(_phase) % 1000000), _snapped(_zone_radius), _snapped(_zone_center.x), _snapped(_zone_center.z),
+		maxf(0.0, ceilf(_zone_next_in)), float(_outside_zone),
+		_snapped(_position.x), _snapped(_position.y), _snapped(_position.z), _snapped(_heading),
+		float(hash(_zone) % 1000000), float(_ammo), float(_reserve),
+		float(_display_shots), float(_display_hits), float(_display_kills),
+		float(_ads), float(_crouching), float(_prone), _snapped(_lean),
+		float(_running), float(_reloading), _snapped(_reload_progress), _snapped(_spread),
+		float(_result_victory), float(_result_kills), _snapped(_result_time), float(_result_rank),
+	])
+	if signature != _signature_shown:
+		_signature_shown = signature
+		_surface.queue_redraw()
+
+
+## Granularity is chosen per field: 0.01 is far under one device pixel for the
+## geometry the HUD rasterises, while the two clocks only ever render as whole
+## seconds through _time_text, so anything finer would wake the layer up on every
+## single frame for a digit that has not moved.
+func _snapped(value: float, granularity: float = 0.01) -> float:
+	return snappedf(value, granularity) if is_finite(value) else 0.0
 
 
 func _cache_properties(object: Object, cache: Dictionary) -> void:
@@ -391,35 +456,35 @@ func _sample_player(delta: float) -> void:
 		return
 	_position = _player.global_position
 	_heading = wrapf(-rad_to_deg(_player.global_rotation.y), 0.0, 360.0)
-	var health_value: float = _number(["health", "current_health", "hp"], -1.0)
+	var health_value: float = _number(PROP_HEALTH, -1.0)
 	_health_known = health_value >= 0.0
 	_health = clampf(health_value, 0.0, 100.0)
-	_armor = maxf(0.0, _number(["armor"], 0.0))
-	_medkits = maxi(0, int(_number(["medkits"], 0.0)))
-	_healing = _flag(["healing"])
-	_heal_left = maxf(0.0, _number(["heal_left"], 0.0))
-	_ammo = maxi(0, int(_number(["ammo", "ammo_in_mag", "magazine_ammo", "current_ammo", "mag_ammo"], 30.0)))
-	_reserve = maxi(0, int(_number(["reserve_ammo", "ammo_reserve", "reserve"], 120.0)))
+	_armor = maxf(0.0, _number(PROP_ARMOR, 0.0))
+	_medkits = maxi(0, int(_number(PROP_MEDKITS, 0.0)))
+	_healing = _flag(PROP_HEALING)
+	_heal_left = maxf(0.0, _number(PROP_HEAL_LEFT, 0.0))
+	_ammo = maxi(0, int(_number(PROP_AMMO, 30.0)))
+	_reserve = maxi(0, int(_number(PROP_RESERVE, 120.0)))
 	if _last_ammo >= 0 and _ammo < _last_ammo:
 		_shots += _last_ammo - _ammo
 	_last_ammo = _ammo
-	_display_shots = maxi(0, int(_number(["shots_fired", "total_shots", "shots"], float(_shots))))
-	_display_hits = maxi(0, int(_number(["hits", "shots_hit", "total_hits"], float(_hits))))
-	_display_kills = maxi(0, int(_number(["kills", "total_kills"], float(_kills))))
-	_ads = _flag(["is_ads", "ads", "aiming", "is_aiming"])
-	_crouching = _flag(["is_crouching", "crouching", "crouched"])
-	_prone = _flag(["prone", "is_prone"])
-	_lean = float(_value(["lean"], 0.0))
-	var velocity: Variant = _value(["velocity"], Vector3.ZERO)
+	_display_shots = maxi(0, int(_number(PROP_SHOTS, float(_shots))))
+	_display_hits = maxi(0, int(_number(PROP_HITS, float(_hits))))
+	_display_kills = maxi(0, int(_number(PROP_KILLS, float(_kills))))
+	_ads = _flag(PROP_ADS)
+	_crouching = _flag(PROP_CROUCH)
+	_prone = _flag(PROP_PRONE)
+	_lean = float(_value(PROP_LEAN, 0.0))
+	var velocity: Variant = _value(PROP_VELOCITY, Vector3.ZERO)
 	_speed = Vector2(velocity.x, velocity.z).length() if velocity is Vector3 else 0.0
-	_running = _flag(["is_sprinting", "sprinting", "is_running", "running"], _speed > 5.5)
-	_reloading = _flag(["is_reloading", "reloading"])
-	var duration: float = maxf(0.01, _number(["reload_duration", "reload_time"], 1.8))
+	_running = _flag(PROP_RUNNING, _speed > 5.5)
+	_reloading = _flag(PROP_RELOADING)
+	var duration: float = maxf(0.01, _number(PROP_RELOAD_DURATION, 1.8))
 	if _reloading:
 		_reload_elapsed += delta
-		var remaining: float = _number(["_reload_left", "reload_time_left", "reload_remaining", "reload_timer"], -1.0)
+		var remaining: float = _number(PROP_RELOAD_LEFT, -1.0)
 		var fallback_progress: float = 1.0 - remaining / duration if remaining >= 0.0 else _reload_elapsed / duration
-		_reload_progress = clampf(_number(["reload_progress"], fallback_progress), 0.0, 1.0)
+		_reload_progress = clampf(_number(PROP_RELOAD_PROGRESS, fallback_progress), 0.0, 1.0)
 	else:
 		_reload_elapsed = 0.0
 		_reload_progress = 0.0
@@ -517,7 +582,7 @@ func _draw_identity(surface: Control) -> void:
 func _draw_compass(surface: Control) -> void:
 	var font_size: int = 15 if _game_flag("mobile_mode") else 12
 	surface.draw_rect(Rect2(430, 19, 420, 62), Color(0.02, 0.04, 0.05, 0.4))
-	var labels: Array[String] = ["北 N", "NE", "东 E", "SE", "南 S", "SW", "西 W", "NW"]
+	var labels: Array[String] = COMPASS_LABELS
 	for tick: int in range(0, 360, 15):
 		var difference: float = wrapf(float(tick) - _heading, -180.0, 180.0)
 		if absf(difference) > 58.0:
@@ -751,7 +816,7 @@ func _draw_menu(surface: Control) -> void:
 	_line(surface, Vector2(40, 214), Vector2(396, 214))
 	_text(surface, "房区搜寻、利用掩体、留意枪声", Vector2(40, 246), 15, Color("c4ced0"))
 	_text(surface, "安全区持续收缩，成为最后的幸存者", Vector2(40, 273), 15, Color("c4ced0"))
-	var chips: Array[String] = ["自主巡逻", "交火追击", "安全区", "补给"]
+	var chips: Array[String] = MENU_CHIPS
 	var x: float = 40.0
 	for chip: String in chips:
 		var width: float = _font.get_string_size(chip, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x + 20.0
@@ -769,19 +834,19 @@ func _draw_menu(surface: Control) -> void:
 		_text(surface, "拾取 / 医疗包", Vector2(40, 656), 17, MUTED)
 	else:
 		_text(surface, "操作指南", Vector2(40, 518), 13, WHITE)
-		_menu_key(surface, "WASD", "移动", Vector2(40, 550))
-		_menu_key(surface, "Shift", "奔跑", Vector2(226, 550))
-		_menu_key(surface, "空格", "跳跃", Vector2(40, 580))
-		_menu_key(surface, "C", "蹲伏", Vector2(226, 580))
-		_menu_key(surface, "右键", "瞄准", Vector2(40, 610))
-		_menu_key(surface, "R", "换弹", Vector2(226, 610))
-		_menu_key(surface, "左键", "射击", Vector2(40, 640))
-		_menu_key(surface, "Esc", "菜单", Vector2(226, 640))
-		_menu_key(surface, "H", "医疗包", Vector2(40, 670))
-		_menu_key(surface, "F", "拾取补给", Vector2(226, 670))
-		_menu_key(surface, "Z", "卧倒", Vector2(412, 550))
-		_menu_key(surface, "Q / E", "左右探头", Vector2(412, 580))
-		_menu_key(surface, "F11", "全屏", Vector2(412, 610))
+		# Two columns only: a third would run under the settings panel at x=475.
+		_menu_key(surface, "WASD", "移动", Vector2(40, 546))
+		_menu_key(surface, "Shift", "奔跑", Vector2(226, 546))
+		_menu_key(surface, "空格", "跳跃", Vector2(40, 570))
+		_menu_key(surface, "C", "蹲伏", Vector2(226, 570))
+		_menu_key(surface, "Z", "卧倒", Vector2(40, 594))
+		_menu_key(surface, "Q / E", "探头", Vector2(226, 594))
+		_menu_key(surface, "左键", "射击", Vector2(40, 618))
+		_menu_key(surface, "右键", "瞄准", Vector2(226, 618))
+		_menu_key(surface, "R", "换弹", Vector2(40, 642))
+		_menu_key(surface, "H", "医疗包", Vector2(226, 642))
+		_menu_key(surface, "F", "拾取补给", Vector2(40, 666))
+		_menu_key(surface, "Esc", "菜单", Vector2(226, 666))
 	_text(surface, "原创低多边形场景 · 单人离线 · Godot 4", Vector2(40, 703), 11, MUTED)
 	if not _result_visible:
 		surface.draw_rect(Rect2(920, 625, 326, 60), Color(0.02, 0.04, 0.05, 0.68))

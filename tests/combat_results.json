@@ -1,7 +1,7 @@
 {
   "checks": [
     {
-      "detail": "8788",
+      "detail": "8776",
       "name": "ground navigation generated",
       "pass": true
     },
@@ -76,7 +76,7 @@
       "pass": true
     },
     {
-      "detail": "9",
+      "detail": "7",
       "name": "building route has waypoints",
       "pass": true
     },
@@ -106,17 +106,17 @@
       "pass": true
     },
     {
-      "detail": "(9.245679, 2.946857, -10.74185)",
+      "detail": "(8.155804, 2.939777, -12.06467)",
       "name": "AI moves independently",
       "pass": true
     },
     {
-      "detail": "shots=8 state=交战",
+      "detail": "shots=10 state=交战",
       "name": "AI acquires target and fires",
       "pass": true
     },
     {
-      "detail": "hp=37.6",
+      "detail": "hp=42.8",
       "name": "AI shots can damage player",
       "pass": true
     },
@@ -131,7 +131,7 @@
       "pass": true
     },
     {
-      "detail": "(-23.99598, 3.055413, 20.86419)",
+      "detail": "(-23.92624, 3.108459, 21.02629)",
       "name": "AI navigates through house doorway",
       "pass": true
     },
@@ -189,8 +189,118 @@
       "detail": "",
       "name": "outside zone loses health",
       "pass": true
+    },
+    {
+      "detail": "",
+      "name": "prone lowers capsule",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "prone caps speed",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "stances stay exclusive",
+      "pass": true
+    },
+    {
+      "detail": "climb=0.1019",
+      "name": "recoil pattern repeats exactly",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "recoil climb stays capped",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "recoil recovers when firing stops",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "step ease lowers the view",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "step ease settles to eye height",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "boundary exit is lethal through armor",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "restart survives the deferred settlement",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "restart leaves survivors processing",
+      "pass": true
+    },
+    {
+      "detail": "offset=-0.128",
+      "name": "bot visual body absorbs the step",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "bot step ease settles back to the collider",
+      "pass": true
+    },
+    {
+      "detail": "[]",
+      "name": "audio buses built",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "gunfire is audible",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "master is limited",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "muffled bus filters highs",
+      "pass": true
+    },
+    {
+      "detail": "[]",
+      "name": "every cue has audio",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "rifle has shot variety",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "four footfall surfaces",
+      "pass": true
+    },
+    {
+      "detail": "",
+      "name": "ambience loops seamlessly",
+      "pass": true
+    },
+    {
+      "detail": "sfx=10 muffled=10",
+      "name": "voice pools stay bounded",
+      "pass": true
     }
   ],
   "failed": 0,
-  "passed": 38
+  "passed": 60
 }

@@ -26,7 +26,6 @@ var touch_roles: Dictionary = {}
 var stick_vector: Vector2 = Vector2.ZERO
 var aim_toggled: bool = false
 var crouch_toggled: bool = false
-var prone_toggled: bool = false
 
 var _game: Node3D
 var _enabled: bool = false
@@ -113,7 +112,6 @@ func release_all() -> void:
 	stick_vector = Vector2.ZERO
 	aim_toggled = false
 	crouch_toggled = false
-	prone_toggled = false
 	queue_redraw()
 
 
@@ -169,17 +167,14 @@ func _press_touch(index: int, point: Vector2) -> bool:
 					aim_toggled = not aim_toggled
 					_set_action("aim", 1.0 if aim_toggled else 0.0)
 				"crouch":
-					prone_toggled = false
 					_set_action("prone", 0.0)
 					crouch_toggled = not crouch_toggled
 					_set_action("crouch", 1.0 if crouch_toggled else 0.0)
 					_apply_movement()
 				"prone":
-					prone_toggled = not prone_toggled
-					if prone_toggled:
-						crouch_toggled = false
-						_set_action("crouch", 0.0)
-					_set_action("prone", 1.0 if prone_toggled else 0.0)
+					# The player owns the toggle and reacts to a press edge, so the
+					# overlay must emit an edge every tap instead of holding state.
+					_tap("prone")
 					_apply_movement()
 				"lean_left":
 					_set_action("lean_left", 1.0)
@@ -237,9 +232,18 @@ func _apply_movement() -> void:
 	_set_action("move_right", maxf(0.0, stick_vector.x))
 	_set_action("move_forward", maxf(0.0, -stick_vector.y))
 	_set_action("move_back", maxf(0.0, stick_vector.y))
-	var sprint: bool = -stick_vector.y > 0.86 and not crouch_toggled and not prone_toggled \
+	var sprint: bool = -stick_vector.y > 0.86 and not crouch_toggled and not _player_prone() \
 		and not Input.is_action_pressed("crouch")
 	_set_action("sprint", 1.0 if sprint else 0.0)
+
+
+func _player_prone() -> bool:
+	# The player owns stance state; the overlay only mirrors it for display and
+	# for the sprint gate, so a second source of truth here would drift.
+	if not is_instance_valid(_game):
+		return false
+	var actor: Node = _game.get("player") as Node
+	return is_instance_valid(actor) and bool(actor.get("prone"))
 
 
 func _set_action(action: String, strength: float) -> void:
@@ -299,7 +303,7 @@ func _draw() -> void:
 		elif role == "crouch":
 			active = crouch_toggled
 		elif role == "prone":
-			active = prone_toggled
+			active = _player_prone()
 		var color: Color = CYAN if active else OUTLINE
 		var center: Vector2 = button["center"]
 		_disc(center, float(button["radius"]), color)

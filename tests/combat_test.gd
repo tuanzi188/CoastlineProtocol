@@ -188,6 +188,66 @@ func run(game: Node3D) -> void:
 	game._zone_clock=1
 	game._update_zone(0.1)
 	check("outside zone loses health",game.player.health<100)
+	game._restart()
+	freeze_bots(game)
+	await wait(0.1)
+	game.player._set_stance(game.player.Stance.PRONE)
+	await wait(0.05)
+	check("prone lowers capsule",game.player.prone and not game.player.crouching and game.player._capsule.height<0.8)
+	check("prone caps speed",is_equal_approx(game.player.PRONE_SPEED,1.5) and game.player.PRONE_SPEED<game.player.CROUCH_SPEED)
+	game.player._set_stance(game.player.Stance.STAND)
+	await wait(0.05)
+	game.player._set_stance(game.player.Stance.CROUCH)
+	game.player._set_stance(game.player.Stance.PRONE)
+	check("stances stay exclusive",game.player.prone and not game.player.crouching)
+	game.player._set_stance(game.player.Stance.STAND)
+	# A learnable pattern has to be reproducible: same burst length, same climb.
+	game.player.reserve=300
+	game.player.ammo=30
+	game.player._recoil=0
+	game.player._recoil_yaw=0
+	game.player._burst=0
+	for shot: int in range(8):
+		game.player._fire()
+	var climb_a: float=game.player._recoil
+	var sway_a: float=game.player._recoil_yaw
+	game.player._recoil=0
+	game.player._recoil_yaw=0
+	game.player._burst=0
+	game.player.ammo=30
+	for shot: int in range(8):
+		game.player._fire()
+	check("recoil pattern repeats exactly",is_equal_approx(climb_a,game.player._recoil) and is_equal_approx(sway_a,game.player._recoil_yaw),"climb=%.4f" % climb_a)
+	check("recoil climb stays capped",game.player._recoil<=game.player.RECOIL_MAX_PITCH+0.0001 and absf(game.player._recoil_yaw)<=game.player.RECOIL_MAX_YAW+0.0001)
+	await wait(0.9)
+	check("recoil recovers when firing stops",game.player._recoil<climb_a*0.55 and absf(game.player._recoil_yaw)<0.005)
+	game.player._step_ease=0.34
+	await wait(0.05)
+	# Invariant rather than a magnitude: the head must sit below the eye line by
+	# whatever ease remains this frame, so the check holds at any frame length.
+	check("step ease lowers the view",game.player._head.position.y<=game.player._eye_height-game.player._step_ease+0.001 and game.player._step_ease<0.34)
+	await wait(0.4)
+	check("step ease settles to eye height",absf(game.player._head.position.y-game.player._eye_height)<0.01)
+	game.player.health=100
+	game.player.armor=50
+	game.player.fall_out_of_world()
+	check("boundary exit is lethal through armor",game.player.dead and game.player.health<=0.0)
+	# No wait here on purpose: the deferred settlement used to land after this
+	# restart and freeze the fresh match.
+	game._restart()
+	await wait(0.15)
+	check("restart survives the deferred settlement",game.running and not game.finished and not game.paused)
+	check("restart leaves survivors processing",game.bots.size()==8 and game.bots[0].process_mode==Node.PROCESS_MODE_INHERIT)
+	freeze_bots(game)
+	var walker: Node3D=game.bots[0]
+	walker.active=true
+	walker._step_ease=0.3
+	await wait(0.05)
+	check("bot visual body absorbs the step",walker.model.position.y<-0.05 and walker.model.position.y>-0.31,"offset=%.3f" % walker.model.position.y)
+	await wait(0.5)
+	check("bot step ease settles back to the collider",absf(walker.model.position.y)<0.01)
+	walker.active=false
+	_audio_checks(game.player.global_position)
 	var failures: int=0
 	for c: Dictionary in checks:
 		if not c.pass: failures+=1
@@ -196,3 +256,32 @@ func run(game: Node3D) -> void:
 	output.close()
 	print("COMBAT_RESULT %d/%d" % [checks.size()-failures,checks.size()])
 	get_tree().quit(1 if failures else 0)
+
+func _audio_checks(origin: Vector3) -> void:
+	var wanted: Array[String] = ["SFX", "Muffled", "Ambient", "UI", "Space"]
+	var missing: Array[String] = []
+	for bus_name: String in wanted:
+		if AudioServer.get_bus_index(bus_name) < 0:
+			missing.append(bus_name)
+	check("audio buses built", missing.is_empty(), str(missing))
+	check("gunfire is audible", AudioServer.get_bus_send(AudioServer.get_bus_index("Muffled")) == "SFX")
+	check("master is limited", AudioServer.get_bus_effect_count(AudioServer.get_bus_index("Master")) > 0)
+	check("muffled bus filters highs", AudioServer.get_bus_effect_count(AudioServer.get_bus_index("Muffled")) > 0)
+	var streams: Dictionary = Audio._streams
+	var silent: Array[String] = []
+	for key: String in streams:
+		var variants: Array = streams[key]
+		if variants.is_empty() or variants[0].data.size() < 400:
+			silent.append(key)
+	check("every cue has audio", silent.is_empty(), str(silent))
+	check("rifle has shot variety", Audio._streams["rifle"].size() >= 3)
+	check("four footfall surfaces", Audio._streams.has("step_grass") and Audio._streams.has("step_sand") \
+		and Audio._streams.has("step_concrete") and Audio._streams.has("step_wood"))
+	var ambient_stream: AudioStreamWAV = Audio._streams["waves"][0]
+	check("ambience loops seamlessly", ambient_stream.loop_mode == AudioStreamWAV.LOOP_FORWARD)
+	for shot_index: int in range(60):
+		Audio.gunshot(origin + Vector3.FORWARD * float(shot_index), shot_index % 2 == 0, false)
+	var loud: int = Audio._pool("3d:SFX").size()
+	var quiet: int = Audio._pool("3d:Muffled").size()
+	check("voice pools stay bounded", loud <= Audio.MAX_VOICES and quiet <= Audio.MAX_VOICES,
+		"sfx=%d muffled=%d" % [loud, quiet])

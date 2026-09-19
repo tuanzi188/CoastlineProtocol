@@ -43,6 +43,11 @@ func run() -> void:
 	check("mobile profile enabled",game.mobile_mode)
 	game._start()
 	for bot: Node3D in game.bots: bot.active=false
+	# The control layer only enables while the window holds focus, which a scripted
+	# launch does not guarantee. touch() already nudges this; the visibility probe
+	# below runs before any touch, so it needs the same nudge or it reports a
+	# focus race as a regression.
+	game.mobile_controls._notification(Node.NOTIFICATION_APPLICATION_FOCUS_IN)
 	await create_timer(0.3).timeout
 	check("touch controls visible",game.mobile_controls.visible)
 	var start: Vector3=game.player.position
@@ -85,18 +90,25 @@ func run() -> void:
 	await touch(10,Vector2(780,588),false)
 	await create_timer(0.25).timeout
 	check("prone toggle drops capsule",game.player.prone and game.player._capsule.height<0.8)
+	await touch(10,Vector2(780,588),true)
+	await touch(10,Vector2(780,588),false)
+	await create_timer(0.25).timeout
+	check("prone toggle restores stance",not game.player.prone and game.player._capsule.height>1.7)
 	await touch(11,Vector2(1150,285),true)
 	await create_timer(0.4).timeout
 	check("lean left holds",game.player.lean<-0.5)
 	await touch(11,Vector2(1150,285),false)
 	await create_timer(0.4).timeout
 	check("lean releases",absf(game.player.lean)<0.1)
-	await touch(12,Vector2(1080,588),true)
-	await touch(12,Vector2(1080,588),false)
+	await touch(12,Vector2(780,588),true)
+	await touch(12,Vector2(780,588),false)
+	await create_timer(0.25).timeout
+	await touch(13,Vector2(1080,588),true)
+	await touch(13,Vector2(1080,588),false)
 	await create_timer(0.25).timeout
 	check("crouch overrides prone",game.player.crouching and not game.player.prone)
-	await touch(12,Vector2(1080,588),true)
-	await touch(12,Vector2(1080,588),false)
+	await touch(13,Vector2(1080,588),true)
+	await touch(13,Vector2(1080,588),false)
 	await create_timer(0.25).timeout
 	await touch(7,Vector2(980,588),true)
 	await touch(7,Vector2(980,588),false)

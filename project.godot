@@ -30,3 +30,7 @@ common/physics_ticks_per_second=60
 
 [audio]
 driver/enable_input=false
+
+[autoload]
+
+Audio="*res://scripts/audio_director.gd"

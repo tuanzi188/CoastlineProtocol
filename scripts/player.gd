@@ -10,6 +10,46 @@ signal died(attacker: Node)
 
 enum Stance { STAND, CROUCH, PRONE }
 
+## A fixed ring of MeshInstance3D that all share one geometry and one material.
+## Building a fresh mesh per shot meant seven new surfaces and GPU uploads every
+## 0.1 s; the ring uploads once at boot and afterwards only writes transforms.
+## Lifetime and drift live in parallel arrays rather than String-named metadata,
+## which was read and re-boxed twice per slot every render frame.
+class EffectPool:
+	var nodes: Array[MeshInstance3D] = []
+	var left: PackedFloat32Array = PackedFloat32Array()
+	var drift: PackedVector3Array = PackedVector3Array()
+	var tracks_drift: bool = false
+	var next_slot: int = 0
+
+	func setup(capacity: int, geometry: Mesh, material: Material, host: Node, with_drift: bool) -> void:
+		tracks_drift = with_drift
+		for index: int in range(capacity):
+			var instance: MeshInstance3D = MeshInstance3D.new()
+			instance.mesh = geometry
+			instance.material_override = material
+			instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			instance.visible = false
+			host.add_child(instance)
+			nodes.append(instance)
+			left.append(0.0)
+			if with_drift:
+				drift.append(Vector3.ZERO)
+
+	func acquire(lifetime: float) -> int:
+		var slot: int = next_slot
+		next_slot = (next_slot + 1) % nodes.size()
+		left[slot] = lifetime
+		nodes[slot].visible = true
+		return slot
+
+	func clear() -> void:
+		for slot: int in range(nodes.size()):
+			left[slot] = 0.0
+			if tracks_drift:
+				drift[slot] = Vector3.ZERO
+			nodes[slot].visible = false
+
 var health: float = 100.0
 var armor: float = 50.0
 var dead: bool = false
@@ -48,9 +88,19 @@ const MAGAZINE_SIZE: int = 30
 const RELOAD_TIME: float = 1.8
 const FIRE_INTERVAL: float = 0.1
 const MOUSE_SENSITIVITY: float = 0.0022
-const MAX_EFFECTS: int = 40
+## Ring capacities. At ten shots per second a 0.045 s tracer and a 0.19 s spark
+## never need more slots than this, and the ring steals the oldest on overflow.
+const MAX_TRACERS: int = 12
+const MAX_SPARKS: int = 48
+const SPARK_COUNT: int = 4
 const MAX_IMPACTS: int = 24
 const IMPACT_LIFETIME: float = 8.0
+const TRACER_LIFETIME: float = 0.045
+# Indexed by Stance; constants so the controller does not allocate a table every
+# render frame just to read one number.
+const EYE_HEIGHT_BY_STANCE: Array[float] = [1.62, 1.02, 0.52]
+const CAPSULE_HEIGHT_BY_STANCE: Array[float] = [1.8, 1.2, 0.66]
+const SPREAD_BY_STANCE: Array[float] = [1.0, 0.72, 0.5]
 # Horizontal sway per shot, replayed in order so the climb can be learned.
 const RECOIL_SWAY: Array[float] = [0.0, 0.9, -0.55, -1.0, 0.65, 1.0, -0.85, -0.35, 0.75, -0.95, 0.45, 0.15]
 const RECOIL_CLIMB_FIRST: float = 0.0205
@@ -58,6 +108,8 @@ const RECOIL_CLIMB_SETTLED: float = 0.0092
 const RECOIL_SWAY_STEP: float = 0.0058
 const RECOIL_MAX_PITCH: float = 0.115
 const RECOIL_MAX_YAW: float = 0.055
+## Terrain, bots and targets all live on physics layer 1.
+const HIT_MASK: int = 1
 const RECOIL_RECOVERY_DELAY: float = 0.26
 const SPRINT_FOV_GAIN: float = 6.5
 const STEP_EASE_MAX: float = 0.34
@@ -66,15 +118,13 @@ var _head: Node3D
 var _body_shape: CollisionShape3D
 var _capsule: CapsuleShape3D
 var _standing_probe: CapsuleShape3D
+var _stand_probe: PhysicsShapeQueryParameters3D
 var _hands: Node3D
 var _weapon: Node3D
 var _muzzle: Marker3D
 var _flash: MeshInstance3D
 var _muzzle_light: OmniLight3D
-var _shot_audio: AudioStreamPlayer
-var _reload_audio: AudioStreamPlayer
-var _step_audio: AudioStreamPlayer
-var _dry_audio: AudioStreamPlayer
+var _surface: String = "grass"
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var _pitch: float = 0.0
 var _recoil: float = 0.0
@@ -100,8 +150,15 @@ var _coyote_left: float = 0.0
 # Landing-buffered jumps retain a floor flag until the next move_and_slide().
 var _jump_consumed: bool = false
 var _mouse_sway: Vector2 = Vector2.ZERO
-var _effects: Array[Node3D] = []
+var _effects_host: Node
+var _tracer_pool: EffectPool
+var _spark_pool: EffectPool
 var _impacts: Array[Node3D] = []
+var _impact_left: PackedFloat32Array = PackedFloat32Array()
+var _impact_next: int = 0
+var _tracer_geometry: CylinderMesh
+var _spark_geometry: BoxMesh
+var _impact_geometry: PlaneMesh
 var _tracer_material: StandardMaterial3D
 var _spark_material: StandardMaterial3D
 var _impact_material: StandardMaterial3D
@@ -127,6 +184,10 @@ func _ready() -> void:
 	_standing_probe = CapsuleShape3D.new()
 	_standing_probe.radius = 0.32
 	_standing_probe.height = 1.76
+	_stand_probe = PhysicsShapeQueryParameters3D.new()
+	_stand_probe.shape = _standing_probe
+	_stand_probe.margin = 0.005
+	_stand_probe.exclude = [get_rid()]
 	_head = Node3D.new()
 	_head.name = "Head"
 	_head.position.y = 1.62
@@ -138,11 +199,32 @@ func _ready() -> void:
 	camera.near = 0.035
 	_head.add_child(camera)
 	_build_weapon()
-	_build_audio()
 	_tracer_material = _material(Color(1.0, 0.79, 0.40), 0.0, 1.0, true)
 	_spark_material = _material(Color(1.0, 0.57, 0.19), 0.0, 1.0, true)
 	_impact_material = _material(Color(0.045, 0.04, 0.035), 0.0, 1.0)
 	_impact_material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_build_effects()
+
+
+## Geometry is authored once and shared by every slot. The tracer is a unit-height
+## cylinder stretched along its own axis, so one mesh covers all engagement ranges.
+func _build_effects() -> void:
+	_tracer_geometry = CylinderMesh.new()
+	_tracer_geometry.top_radius = 0.008
+	_tracer_geometry.bottom_radius = 0.004
+	_tracer_geometry.height = 1.0
+	_tracer_geometry.radial_segments = 5
+	_spark_geometry = BoxMesh.new()
+	_spark_geometry.size = Vector3(0.013, 0.013, 0.036)
+	_impact_geometry = PlaneMesh.new()
+	_impact_geometry.size = Vector2(0.055, 0.055)
+	_effects_host = _effect_parent()
+	if _effects_host == null:
+		return
+	_tracer_pool = EffectPool.new()
+	_tracer_pool.setup(MAX_TRACERS, _tracer_geometry, _tracer_material, _effects_host, false)
+	_spark_pool = EffectPool.new()
+	_spark_pool.setup(MAX_SPARKS, _spark_geometry, _spark_material, _effects_host, true)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -164,6 +246,7 @@ func _physics_process(delta: float) -> void:
 	# Cancellation takes priority over completing a heal on this tick.
 	if healing:
 		if not controls or Input.is_action_pressed("fire") or Input.is_action_pressed("sprint"):
+			Audio.heal_cancel()
 			_cancel_heal()
 		else:
 			heal_left = maxf(0.0, heal_left - delta)
@@ -171,6 +254,7 @@ func _physics_process(delta: float) -> void:
 				health = minf(health + 60.0, 100.0)
 				medkits -= 1
 				_cancel_heal()
+				Audio.heal_finish()
 	if controls and InputMap.has_action("heal") and Input.is_action_just_pressed("heal"):
 		if not Input.is_action_pressed("fire") and not Input.is_action_pressed("sprint"):
 			start_heal()
@@ -181,6 +265,7 @@ func _physics_process(delta: float) -> void:
 			ammo += amount
 			reserve -= amount
 			reloading = false
+			Audio.reload_finish()
 	# Going lower is always allowed; rising has to clear the standing probe.
 	if controls and Input.is_action_just_pressed("prone"):
 		_set_stance(Stance.STAND if prone else Stance.PRONE)
@@ -262,8 +347,7 @@ func _physics_process(delta: float) -> void:
 			else:
 				# The click lands before the auto-reload so an empty magazine is
 				# audible instead of a silent dead trigger.
-				_dry_audio.pitch_scale = _rng.randf_range(0.94, 1.06)
-				_dry_audio.play()
+				Audio.dry_fire()
 				_start_reload()
 	_update_footsteps(delta, controls)
 
@@ -286,7 +370,7 @@ func _process(delta: float) -> void:
 	_ads = lerpf(_ads, 1.0 if can_aim else 0.0, smooth)
 	# The collider changes height instantly so collision never lags the view;
 	# only the eye line is eased.
-	_eye_height = lerpf(_eye_height, [1.62, 1.02, 0.52][_stance], smooth)
+	_eye_height = lerpf(_eye_height, EYE_HEIGHT_BY_STANCE[_stance], smooth)
 	_step_ease = lerpf(_step_ease, 0.0, 1.0 - exp(-17.0 * delta))
 	_land_dip = lerpf(_land_dip, 0.0, 1.0 - exp(-9.0 * delta))
 	_sprint_fov = lerpf(_sprint_fov, 1.0 if sprinting and active and is_on_floor() else 0.0, 1.0 - exp(-6.5 * delta))
@@ -372,19 +456,16 @@ func _set_stance(next_stance: int) -> void:
 	_stance = next_stance
 	prone = _stance == Stance.PRONE
 	crouching = _stance == Stance.CROUCH
-	_capsule.height = [1.8, 1.2, 0.66][_stance]
+	_capsule.height = CAPSULE_HEIGHT_BY_STANCE[_stance]
 	_body_shape.position.y = _capsule.height * 0.5
 
 
 func _can_stand() -> bool:
-	var query: PhysicsShapeQueryParameters3D = PhysicsShapeQueryParameters3D.new()
-	query.shape = _standing_probe
-	query.transform = Transform3D(global_transform.basis.orthonormalized(), global_position + Vector3.UP * 0.92)
-	query.collision_mask = collision_mask
-	query.exclude = [get_rid()]
-	query.margin = 0.005
-	var collisions: Array[Dictionary] = get_world_3d().direct_space_state.intersect_shape(query, 1)
-	return collisions.is_empty()
+	# Reused query object: this runs every physics tick while crouched, and the
+	# parameters plus their exclude array were previously rebuilt each time.
+	_stand_probe.transform = Transform3D(global_transform.basis.orthonormalized(), global_position + Vector3.UP * 0.92)
+	_stand_probe.collision_mask = collision_mask
+	return get_world_3d().direct_space_state.intersect_shape(_stand_probe, 1).is_empty()
 
 
 func take_damage(amount: int, source: Vector3, attacker: Node = null) -> void:
@@ -394,6 +475,10 @@ func take_damage(amount: int, source: Vector3, attacker: Node = null) -> void:
 	armor -= absorbed
 	var health_damage: float = minf(health, float(amount) - absorbed)
 	health = maxf(0.0, health - health_damage)
+	if health_damage > 0.0:
+		Audio.player_hit()
+	if healing:
+		Audio.heal_cancel()
 	_cancel_heal()
 	if health <= 0.0:
 		_die(attacker, health_damage, source)
@@ -423,8 +508,6 @@ func _die(attacker: Node, health_damage: float, source: Vector3) -> void:
 	_jump_buffer_left = 0.0
 	_coyote_left = 0.0
 	_flash_left = 0.0
-	if is_instance_valid(_reload_audio):
-		_reload_audio.stop()
 	if is_instance_valid(_flash):
 		_flash.hide()
 	if is_instance_valid(_muzzle_light):
@@ -438,11 +521,10 @@ func start_heal() -> void:
 		return
 	reloading = false
 	_reload_left = 0.0
-	if is_instance_valid(_reload_audio):
-		_reload_audio.stop()
 	sprinting = false
 	healing = true
 	heal_left = 3.0
+	Audio.heal_start()
 
 
 func _cancel_heal() -> void:
@@ -462,7 +544,7 @@ func _start_reload() -> void:
 	reloading = true
 	aiming = false
 	_reload_left = RELOAD_TIME
-	_reload_audio.play()
+	Audio.reload_start()
 	reload_started.emit()
 
 
@@ -478,7 +560,7 @@ func _fire() -> void:
 	var origin: Vector3 = camera.global_position
 	var direction: Vector3 = -camera.global_transform.basis.z
 	if not aiming:
-		var spread: float = (0.006 + clampf(horizontal_speed / SPRINT_SPEED, 0.0, 1.0) * 0.005) * [1.0, 0.72, 0.5][_stance]
+		var spread: float = (0.006 + clampf(horizontal_speed / SPRINT_SPEED, 0.0, 1.0) * 0.005) * SPREAD_BY_STANCE[_stance]
 		if not is_on_floor():
 			# Airborne is by far the worst accuracy state and has to be felt.
 			spread += 0.007
@@ -486,27 +568,27 @@ func _fire() -> void:
 		var radius: float = sqrt(_rng.randf()) * spread
 		direction = (direction + camera.global_transform.basis.x * cos(angle) * radius + camera.global_transform.basis.y * sin(angle) * radius).normalized()
 	var end: Vector3 = origin + direction * 220.0
-	var query: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(origin, end)
+	# Layer 1 carries terrain, bots and targets alike (see enemy.gd's _ray), so the
+	# default all-bits mask only widens the broadphase walk. The project has no
+	# Area3D at all, so area traversal was pure query cost on every shot.
+	var query: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(origin, end, HIT_MASK)
 	query.exclude = [get_rid()]
-	query.collide_with_areas = true
 	query.hit_from_inside = true
 	var result: Dictionary = get_world_3d().direct_space_state.intersect_ray(query)
 	if not result.is_empty():
 		end = result["position"] as Vector3
 	# Check the barrel path first: the muzzle may already be beyond a thin wall.
 	var muzzle_origin: Vector3 = _muzzle.global_position
-	var barrel_query: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(origin, muzzle_origin)
+	var barrel_query: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(origin, muzzle_origin, HIT_MASK)
 	barrel_query.exclude = [get_rid()]
-	barrel_query.collide_with_areas = true
 	barrel_query.hit_from_inside = true
 	var barrel_result: Dictionary = get_world_3d().direct_space_state.intersect_ray(barrel_query)
 	if not barrel_result.is_empty():
 		result = barrel_result
 	elif muzzle_origin.distance_squared_to(end) > 0.000001:
 		# The camera picks the aim point; the muzzle must have a clear path to it.
-		var muzzle_query: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(muzzle_origin, end)
+		var muzzle_query: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(muzzle_origin, end, HIT_MASK)
 		muzzle_query.exclude = [get_rid()]
-		muzzle_query.collide_with_areas = true
 		muzzle_query.hit_from_inside = true
 		var muzzle_result: Dictionary = get_world_3d().direct_space_state.intersect_ray(muzzle_query)
 		if not muzzle_result.is_empty():
@@ -519,11 +601,10 @@ func _fire() -> void:
 			var killed: bool = bool(collider.call("receive_hit", 34, end))
 			var headshot: bool = false
 			# Damageables need not expose last_headshot, and may free themselves on hit.
-			if is_instance_valid(collider):
-				for property: Dictionary in collider.get_property_list():
-					if property["name"] == &"last_headshot":
-						headshot = bool(collider.get("last_headshot"))
-						break
+			# `in` is an O(1) existence probe; the old loop materialised the collider's
+			# entire property list as an Array of Dictionaries on every impact.
+			if is_instance_valid(collider) and "last_headshot" in collider:
+				headshot = bool(collider.get("last_headshot"))
 			hits += 1
 			if killed:
 				kills += 1
@@ -551,8 +632,7 @@ func _fire() -> void:
 	_flash.rotation.z = _rng.randf_range(-PI, PI)
 	_flash.visible = true
 	_muzzle_light.visible = true
-	_shot_audio.pitch_scale = _rng.randf_range(0.96, 1.04)
-	_shot_audio.play()
+	Audio.own_weapon_shot()
 	shot_fired.emit()
 
 
@@ -609,17 +689,15 @@ func reset_loadout() -> void:
 		_hands.reset_pose()
 		_flash.visible = false
 		_muzzle_light.visible = false
-		_reload_audio.stop()
-		_shot_audio.stop()
-		_step_audio.stop()
-	for effect: Node3D in _effects:
-		if is_instance_valid(effect):
-			effect.queue_free()
-	_effects.clear()
+	if _tracer_pool != null:
+		_tracer_pool.clear()
+	if _spark_pool != null:
+		_spark_pool.clear()
 	for impact: Node3D in _impacts:
 		if is_instance_valid(impact):
 			impact.queue_free()
 	_impacts.clear()
+	_impact_left.resize(0)
 
 
 func _material(color: Color, metal: float = 0.0, roughness: float = 0.7, glow: bool = false) -> StandardMaterial3D:
@@ -773,54 +851,27 @@ func _effect_parent() -> Node:
 	return scene if scene != null and scene != self else get_parent()
 
 
-func _track_effect(effect: Node3D, lifetime: float) -> void:
-	while _effects.size() >= MAX_EFFECTS:
-		var oldest: Node3D = _effects.pop_front() as Node3D
-		if is_instance_valid(oldest):
-			oldest.queue_free()
-	effect.set_meta("remaining", lifetime)
-	_effects.append(effect)
-
-
 func _spawn_tracer(start: Vector3, end: Vector3) -> void:
 	var displacement: Vector3 = end - start
 	var length: float = displacement.length()
-	if length < 0.01:
+	if length < 0.01 or _tracer_pool == null:
 		return
-	var parent: Node = _effect_parent()
-	if parent == null:
-		return
-	var geometry: CylinderMesh = CylinderMesh.new()
-	geometry.top_radius = 0.008
-	geometry.bottom_radius = 0.004
-	geometry.height = length
-	geometry.radial_segments = 5
-	var tracer: MeshInstance3D = MeshInstance3D.new()
-	tracer.mesh = geometry
-	tracer.material_override = _tracer_material
-	tracer.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	parent.add_child(tracer)
+	var slot: int = _tracer_pool.acquire(TRACER_LIFETIME)
+	var tracer: MeshInstance3D = _tracer_pool.nodes[slot]
+	# The shared cylinder is unit height, so range is expressed as a local Y scale
+	# instead of a rebuilt geometry.
+	tracer.global_basis = Basis(Quaternion(Vector3.UP, displacement / length)).scaled(Vector3(1.0, length, 1.0))
 	tracer.global_position = (start + end) * 0.5
-	tracer.global_basis = Basis(Quaternion(Vector3.UP, displacement / length))
-	_track_effect(tracer, 0.045)
 
 
 func _spawn_sparks(point: Vector3, normal: Vector3) -> void:
-	var parent: Node = _effect_parent()
-	if parent == null:
+	if _spark_pool == null:
 		return
-	for index: int in range(4):
-		var geometry: BoxMesh = BoxMesh.new()
-		geometry.size = Vector3(0.013, 0.013, 0.036)
-		var spark: MeshInstance3D = MeshInstance3D.new()
-		spark.mesh = geometry
-		spark.material_override = _spark_material
-		spark.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		parent.add_child(spark)
+	for index: int in range(SPARK_COUNT):
+		var slot: int = _spark_pool.acquire(_rng.randf_range(0.10, 0.19))
+		var spark: MeshInstance3D = _spark_pool.nodes[slot]
 		spark.global_position = point + normal * 0.018
-		var drift: Vector3 = normal * _rng.randf_range(0.7, 1.8) + Vector3(_rng.randf_range(-0.8, 0.8), _rng.randf_range(0.2, 1.1), _rng.randf_range(-0.8, 0.8))
-		spark.set_meta("drift", drift)
-		_track_effect(spark, _rng.randf_range(0.10, 0.19))
+		_spark_pool.drift[slot] = normal * _rng.randf_range(0.7, 1.8) + Vector3(_rng.randf_range(-0.8, 0.8), _rng.randf_range(0.2, 1.1), _rng.randf_range(-0.8, 0.8))
 
 
 func _spawn_impact(point: Vector3, normal: Vector3, collider: Object) -> void:
@@ -832,127 +883,73 @@ func _spawn_impact(point: Vector3, normal: Vector3, collider: Object) -> void:
 		return
 	while _impacts.size() >= MAX_IMPACTS:
 		var oldest: Node3D = _impacts.pop_front() as Node3D
+		_impact_left.remove_at(0)
 		if is_instance_valid(oldest):
 			oldest.hide()
 			oldest.queue_free()
-	var geometry: PlaneMesh = PlaneMesh.new()
-	geometry.size = Vector2(0.055, 0.055)
-	var impact: MeshInstance3D = _mesh(parent, geometry, Vector3.ZERO, _impact_material)
+	var impact: MeshInstance3D = _mesh(parent, _impact_geometry, Vector3.ZERO, _impact_material)
 	var surface_normal: Vector3 = normal.normalized()
 	impact.global_position = point + surface_normal * 0.003
 	impact.global_basis = Basis(Quaternion(Vector3.UP, surface_normal))
-	impact.set_meta("remaining", IMPACT_LIFETIME)
 	_impacts.append(impact)
+	_impact_left.append(IMPACT_LIFETIME)
 
 
 func _update_effects(delta: float) -> void:
+	_tick_pool(_tracer_pool, delta)
+	_tick_pool(_spark_pool, delta)
 	for index: int in range(_impacts.size() - 1, -1, -1):
 		var impact: Node3D = _impacts[index]
 		if not is_instance_valid(impact):
 			_impacts.remove_at(index)
+			_impact_left.remove_at(index)
 			continue
-		var remaining: float = float(impact.get_meta("remaining", 0.0)) - delta
+		var remaining: float = _impact_left[index] - delta
 		if remaining <= 0.0:
 			impact.queue_free()
 			_impacts.remove_at(index)
+			_impact_left.remove_at(index)
 		else:
-			impact.set_meta("remaining", remaining)
-	for index: int in range(_effects.size() - 1, -1, -1):
-		var effect: Node3D = _effects[index]
-		if not is_instance_valid(effect):
-			_effects.remove_at(index)
-			continue
-		var remaining: float = float(effect.get_meta("remaining", 0.0)) - delta
+			_impact_left[index] = remaining
+
+
+func _tick_pool(pool: EffectPool, delta: float) -> void:
+	if pool == null:
+		return
+	for slot: int in range(pool.nodes.size()):
+		var remaining: float = pool.left[slot] - delta
 		if remaining <= 0.0:
-			effect.queue_free()
-			_effects.remove_at(index)
+			pool.left[slot] = 0.0
+			if pool.tracks_drift:
+				pool.drift[slot] = Vector3.ZERO
+			if pool.nodes[slot].visible:
+				pool.nodes[slot].visible = false
 			continue
-		effect.set_meta("remaining", remaining)
-		if effect.has_meta("drift"):
-			var drift: Vector3 = effect.get_meta("drift") as Vector3
+		pool.left[slot] = remaining
+		if pool.tracks_drift:
+			var drift: Vector3 = pool.drift[slot]
 			drift.y -= 6.0 * delta
-			effect.global_position += drift * delta
-			effect.set_meta("drift", drift)
+			pool.nodes[slot].global_position += drift * delta
+			pool.drift[slot] = drift
 
 
 func _exit_tree() -> void:
-	for audio: AudioStreamPlayer in [_shot_audio,_reload_audio,_step_audio,_dry_audio]:
-		if is_instance_valid(audio):
-			audio.stop()
-			audio.stream=null
-	for effect: Node3D in _effects:
-		if is_instance_valid(effect) and not effect.is_queued_for_deletion():
-			effect.queue_free()
-	_effects.clear()
+	_release_pool(_tracer_pool)
+	_release_pool(_spark_pool)
 	for impact: Node3D in _impacts:
 		if is_instance_valid(impact) and not impact.is_queued_for_deletion():
 			impact.queue_free()
 	_impacts.clear()
+	_impact_left.resize(0)
 
 
-func _build_audio() -> void:
-	_shot_audio = AudioStreamPlayer.new()
-	_shot_audio.name = "RifleAudio"
-	_shot_audio.stream = _synthesize_sound(0)
-	_shot_audio.volume_db = -16.0
-	_shot_audio.max_polyphony = 4
-	add_child(_shot_audio)
-	_reload_audio = AudioStreamPlayer.new()
-	_reload_audio.name = "ReloadAudio"
-	_reload_audio.stream = _synthesize_sound(1)
-	_reload_audio.volume_db = -21.0
-	add_child(_reload_audio)
-	_step_audio = AudioStreamPlayer.new()
-	_step_audio.name = "FootstepAudio"
-	_step_audio.stream = _synthesize_sound(2)
-	_step_audio.volume_db = -24.0
-	add_child(_step_audio)
-	_dry_audio = AudioStreamPlayer.new()
-	_dry_audio.name = "DryFireAudio"
-	_dry_audio.stream = _synthesize_sound(3)
-	_dry_audio.volume_db = -19.0
-	add_child(_dry_audio)
-
-
-func _synthesize_sound(kind: int) -> AudioStreamWAV:
-	const SAMPLE_RATE: int = 22050
-	var duration: float = 0.23 if kind == 0 else (1.8 if kind == 1 else (0.06 if kind == 3 else 0.15))
-	var sample_count: int = int(duration * SAMPLE_RATE)
-	var bytes: PackedByteArray = PackedByteArray()
-	bytes.resize(sample_count * 2)
-	var filtered_noise: float = 0.0
-	for index: int in range(sample_count):
-		var t: float = float(index) / float(SAMPLE_RATE)
-		var noise: float = _rng.randf_range(-1.0, 1.0)
-		filtered_noise = lerpf(filtered_noise, noise, 0.32)
-		var value: float = 0.0
-		if kind == 0:
-			value = filtered_noise * exp(-t * 27.0) * 0.75 + sin(TAU * (135.0 * t - 90.0 * t * t)) * exp(-t * 23.0) * 0.35
-			value += noise * exp(-t * 160.0) * 0.13
-		elif kind == 1:
-			for click_time: float in [0.05, 0.34, 1.12, 1.52]:
-				var elapsed: float = t - click_time
-				if elapsed >= 0.0 and elapsed < 0.12:
-					value += (filtered_noise * 0.65 + sin(elapsed * TAU * 620.0) * 0.15) * exp(-elapsed * 60.0) * minf(elapsed * 800.0, 1.0)
-		else:
-			value = (filtered_noise * 0.45 + sin(TAU * 88.0 * t) * 0.40) * exp(-t * 32.0)
-		if kind == 3:
-			# Empty-magazine snap: a hard trigger transient followed a few
-			# milliseconds later by the bolt striking an empty well.
-			value = filtered_noise * exp(-t * 190.0) * 0.55 + sin(TAU * 2400.0 * t) * exp(-t * 150.0) * 0.30
-			var second: float = t - 0.011
-			if second >= 0.0:
-				value += (filtered_noise * 0.4 + sin(TAU * 1650.0 * second) * 0.25) * exp(-second * 210.0) * 0.4
-		# Short attack/release envelopes remove hard clicks at buffer boundaries.
-		value *= minf(t * 1200.0, 1.0) * clampf((duration - t) * 150.0, 0.0, 1.0)
-		var pcm: int = int(clampf(value, -0.95, 0.95) * 32767.0)
-		bytes.encode_s16(index * 2, pcm)
-	var stream: AudioStreamWAV = AudioStreamWAV.new()
-	stream.format = AudioStreamWAV.FORMAT_16_BITS
-	stream.mix_rate = SAMPLE_RATE
-	stream.stereo = false
-	stream.data = bytes
-	return stream
+func _release_pool(pool: EffectPool) -> void:
+	if pool == null:
+		return
+	for node: MeshInstance3D in pool.nodes:
+		if is_instance_valid(node):
+			node.queue_free()
+	pool.nodes.clear()
 
 
 func _update_footsteps(delta: float, controls: bool) -> void:
@@ -961,8 +958,22 @@ func _update_footsteps(delta: float, controls: bool) -> void:
 		return
 	_step_distance += horizontal_speed * delta
 	var stride: float = 2.15 if sprinting else (1.45 if crouching else 1.85)
-	if _step_distance >= stride:
-		_step_distance = fmod(_step_distance, stride)
-		_step_audio.volume_db = -29.0 if crouching else -24.0
-		_step_audio.pitch_scale = _rng.randf_range(0.90, 1.10)
-		_step_audio.play()
+	if _step_distance < stride:
+		return
+	_step_distance = fmod(_step_distance, stride)
+	_surface = _floor_surface()
+	Audio.footstep(_surface)
+
+
+## Footfalls have to know what they land on, so the surface is probed at the
+## moment of the step rather than cached while crossing materials.
+func _floor_surface() -> String:
+	var query := PhysicsRayQueryParameters3D.create(global_position + Vector3.UP * 0.9,
+		global_position - Vector3.UP * 1.2, 1, [get_rid()])
+	var hit: Dictionary = get_world_3d().direct_space_state.intersect_ray(query)
+	if hit.is_empty():
+		return "grass"
+	var floor_body: Node = hit["collider"] as Node
+	if floor_body != null and floor_body.name == "IslandTerrain":
+		return "sand" if global_position.y < 1.25 else "grass"
+	return "concrete"

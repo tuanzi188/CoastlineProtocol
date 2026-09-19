@@ -218,7 +218,7 @@ func _build_warehouse_door() -> void:
 	for side: float in [-1.0, 1.0]:
 		for y: float in [1.2, 3.0, 4.8]:
 			_add_box(root, Vector3(side * 5.7, y, 14.03), Vector3(0.08, 0.09, 0.08), "orange")
-	_label(root, Vector3(0.0, 6.84, 14.08), "ROLLER  07", 0.010)
+	_label(root, Vector3(0.0, 6.42, 14.02), "ROLLER  07", 0.0075)
 
 
 func _build_cover_objects() -> void:

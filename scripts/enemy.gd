@@ -2,7 +2,9 @@ extends CharacterBody3D
 
 signal eliminated(bot: Node3D, killer: Node)
 
-const SoldierModel = preload("res://scripts/soldier_model.gd")
+const SoldierModel = preload("res://scripts/soldier_rig.gd")
+const SEPARATION_RANGE: float = 1.6
+const STEP_EASE_MAX: float = 0.34
 var game: Node3D
 var bot_id: int = 0
 var health: int = 100
@@ -18,7 +20,6 @@ var model: Node3D
 
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var _capsule: CollisionShape3D
-var _audio: AudioStreamPlayer3D
 var _flash: MeshInstance3D
 var _tracer: MeshInstance3D
 var _muzzle: Marker3D
@@ -38,7 +39,20 @@ var _strafe_left: float = 0.0
 var _strafe_sign: float = 1.0
 var _effect_left: float = 0.0
 var _visible_target: bool = false
-static var _shot_stream: AudioStreamWAV
+# The collider must clear a step instantly, so the visual body carries the
+# opposite offset and eases home; teleporting the root makes the soldier hop.
+var _step_ease: float = 0.0
+var _land_dip: float = 0.0
+var _approach_velocity_y: float = 0.0
+var _grounded: bool = false
+# Measured travel per frame, so the walk cycle stays honest when a wall eats the
+# intended velocity or separation pushes the bot further than it asked to move.
+var _travel_speed: float = 0.0
+var _separation: Vector3 = Vector3.ZERO
+# Perception issues up to ten rays per scan for every bot; one reusable query
+# object and exclude list keeps that from allocating on each cast.
+var _ray_query: PhysicsRayQueryParameters3D
+var _self_rid: Array[RID] = []
 
 
 func _ready() -> void:
@@ -66,21 +80,30 @@ func _ready() -> void:
 	_build_effects()
 	_scan_left = _rng.randf_range(0.0, 0.2)
 	_strafe_sign = -1.0 if bot_id % 2 == 0 else 1.0
+	_ray_query = PhysicsRayQueryParameters3D.new()
+	_ray_query.collision_mask = 1
+	_ray_query.hit_from_inside = true
+	_self_rid = [get_rid()]
+	_ray_query.exclude = _self_rid
 
 
 func _physics_process(delta: float) -> void:
 	_effect_left = maxf(0.0, _effect_left - delta)
+	_step_ease = lerpf(_step_ease, 0.0, 1.0 - exp(-17.0 * delta))
+	_land_dip = lerpf(_land_dip, 0.0, 1.0 - exp(-9.0 * delta))
+	model.position.y = -_step_ease
 	var running: bool = active and not dead and is_instance_valid(game) and bool(game.get("running"))
 	_flash.visible = running and _effect_left > 0.0
 	_tracer.visible = _flash.visible
 	if dead:
 		velocity = Vector3.ZERO
-		model.call("animate", 0.0, false, false, true, delta)
+		_travel_speed = 0.0
+		model.call("animate", 0.0, false, false, true, delta, 0.0)
 		return
 	if not running:
 		velocity = Vector3.ZERO
-		_audio.stop()
-		model.call("animate", 0.0, false, false, false, delta)
+		_travel_speed = 0.0
+		model.call("animate", 0.0, false, false, false, delta, 0.0)
 		return
 	_scan_left -= delta
 	_path_left -= delta
@@ -153,7 +176,7 @@ func _physics_process(delta: float) -> void:
 			rotation.y = lerp_angle(rotation.y, atan2(-aim.x, -aim.z), 1.0 - exp(-7.0 * delta))
 		if _reload_left <= 0.0 and _reaction_left <= 0.0 and _shot_left <= 0.0 and (-global_basis.z).dot(aim.normalized()) > 0.90:
 			_fire()
-	model.call("animate", Vector2(velocity.x, velocity.z).length(), _visible_target, _reload_left > 0.0, false, delta)
+	model.call("animate", _travel_speed, _visible_target, _reload_left > 0.0, false, delta, _land_dip)
 
 
 func _is_combatant(node: Node3D) -> bool:
@@ -209,9 +232,9 @@ func _can_see(candidate: Node3D) -> bool:
 
 
 func _ray(start: Vector3, end: Vector3) -> Dictionary:
-	var query: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(start, end, 1, [get_rid()])
-	query.hit_from_inside = true
-	return get_world_3d().direct_space_state.intersect_ray(query)
+	_ray_query.from = start
+	_ray_query.to = end
+	return get_world_3d().direct_space_state.intersect_ray(_ray_query)
 
 
 func hear_shot(source: Vector3, shooter: Node3D) -> void:
@@ -256,7 +279,7 @@ func _move(delta: float, speed: float) -> void:
 			direction = direction.normalized()
 		else:
 			_has_goal = false
-	var separation: Vector3 = Vector3.ZERO
+	var push: Vector3 = Vector3.ZERO
 	var bots: Array = game.get("bots") as Array
 	for entry: Variant in bots:
 		var other: Node3D = entry as Node3D
@@ -265,14 +288,29 @@ func _move(delta: float, speed: float) -> void:
 		var away: Vector3 = global_position - other.global_position
 		away.y = 0.0
 		var distance: float = away.length()
-		if distance > 0.01 and distance < 1.35:
-			separation += away / distance * (1.35 - distance)
-	direction = (direction + separation * 1.4).limit_length(1.0)
+		if distance > 0.01 and distance < SEPARATION_RANGE:
+			# A smooth ramp replaces the old hard cutoff. Two bots parked at that
+			# threshold used to switch the force on and off and twitch together.
+			push += away / distance * smoothstep(SEPARATION_RANGE, 0.45, distance)
+	_separation = _separation.lerp(push, 1.0 - exp(-8.0 * delta))
+	direction = (direction + _separation * 1.4).limit_length(1.0)
 	velocity.x = move_toward(velocity.x, direction.x * speed, delta * 12.0)
 	velocity.z = move_toward(velocity.z, direction.z * speed, delta * 12.0)
-	velocity.y = 0.0 if is_on_floor() else maxf(-40.0, velocity.y - 19.0 * delta)
+	if is_on_floor():
+		velocity.y = 0.0
+	else:
+		velocity.y = maxf(-40.0, velocity.y - 19.0 * delta)
+	# Sampled before move_and_slide resets it, so a landing still has an impact
+	# velocity to react to.
+	_approach_velocity_y = velocity.y
 	_try_step(delta)
+	var before: Vector3 = global_position
 	move_and_slide()
+	_travel_speed = Vector2(global_position.x - before.x,global_position.z - before.z).length() / maxf(delta,0.0001)
+	var landed: bool = is_on_floor()
+	if landed and not _grounded and _approach_velocity_y < -5.0:
+		_land_dip = clampf((-_approach_velocity_y - 5.0) / 12.0, 0.0, 1.0) * 0.11
+	_grounded = landed
 	if not _visible_target and direction.length_squared() > 0.01:
 		rotation.y = lerp_angle(rotation.y, atan2(-direction.x, -direction.z), 1.0 - exp(-5.0 * delta))
 
@@ -289,7 +327,13 @@ func _try_step(delta: float) -> void:
 	var hit:=KinematicCollision3D.new()
 	if test_move(raised,Vector3.DOWN*0.34,hit) and hit.get_normal().y>0.72:
 		var rise: float=0.30+hit.get_travel().y
-		if rise>0.025: global_position.y+=rise+0.015
+		if rise>0.025:
+			var lift: float=rise+0.015
+			global_position.y+=lift
+			# The collider has to be on top of the step this frame, so the visible
+			# body takes the opposite offset and climbs back into place instead of
+			# popping up by the full height.
+			_step_ease=minf(_step_ease+lift,STEP_EASE_MAX)
 
 
 func _fire() -> void:
@@ -327,8 +371,9 @@ func _fire() -> void:
 			damage_dealt += maxi(0, int(before - float(collider.get("health"))))
 	_show_tracer(start, end)
 	_effect_left = 0.055
-	_audio.pitch_scale = _rng.randf_range(0.93, 1.07)
-	_audio.play()
+	var hearer: Node3D = game.get("player") as Node3D
+	var ear: Vector3 = hearer.camera.global_position if is_instance_valid(hearer) else global_position
+	Audio.gunshot(start, _sound_blocked(ear, start), ear.distance_to(start) > 42.0)
 	var listeners: Array = game.get("bots") as Array
 	for entry: Variant in listeners:
 		var listener: Node3D = entry as Node3D
@@ -369,7 +414,6 @@ func _apply_damage(amount: int, source: Vector3, attacker: Node) -> void:
 		_capsule.set_deferred("disabled", true)
 		_flash.hide()
 		_tracer.hide()
-		_audio.stop()
 		eliminated.emit(self, attacker)
 	elif is_instance_valid(attacker) and not _visible_target:
 		_last_seen = _ground(source)
@@ -378,18 +422,18 @@ func _apply_damage(amount: int, source: Vector3, attacker: Node) -> void:
 		state = "搜索"
 
 
+## Wall occlusion for the listener, not the target: a shot that is perfectly
+## audible to whoever is aimed at still has to reach the ear it is reported to.
+func _sound_blocked(ear: Vector3, source: Vector3) -> bool:
+	var query: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(ear, source, 1, [get_rid()])
+	var player: Node3D = game.get("player") as Node3D
+	if is_instance_valid(player):
+		query.exclude = [get_rid(), player.get_rid()]
+	query.collide_with_areas = false
+	return not get_world_3d().direct_space_state.intersect_ray(query).is_empty()
+
+
 func _build_effects() -> void:
-	_audio = AudioStreamPlayer3D.new()
-	_audio.name = "RifleAudio"
-	if _shot_stream == null:
-		_shot_stream = _synthesize_shot()
-	_audio.stream = _shot_stream
-	_audio.volume_db = -10.0
-	_audio.unit_size = 6.0
-	_audio.max_distance = 90.0
-	_audio.max_polyphony = 3
-	_audio.position.y = 1.4
-	add_child(_audio)
 	var glow: StandardMaterial3D = StandardMaterial3D.new()
 	glow.albedo_color = Color(1.0, 0.80, 0.43)
 	glow.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
@@ -425,27 +469,3 @@ func _show_tracer(start: Vector3, end: Vector3) -> void:
 	_tracer.global_position = (start + end) * 0.5
 	var direction: Vector3 = (end - start).normalized()
 	_tracer.global_basis = Basis(Quaternion(Vector3.FORWARD, direction)).scaled_local(Vector3(1, 1, length))
-
-
-func _exit_tree() -> void:
-	if is_instance_valid(_audio):
-		_audio.stop()
-		_audio.stream=null
-
-
-func _synthesize_shot() -> AudioStreamWAV:
-	var samples: PackedByteArray = PackedByteArray()
-	var count: int = 4410
-	samples.resize(count * 2)
-	var noise: float = 0.0
-	for index: int in range(count):
-		var time: float = float(index) / 22050.0
-		noise = lerpf(noise, _rng.randf_range(-1.0, 1.0), 0.45)
-		var value: float = (noise * 0.8 + sin(TAU * 135.0 * time) * 0.3) * exp(-time * 32.0)
-		value *= minf(time * 1500.0, 1.0) * clampf((0.2 - time) * 120.0, 0.0, 1.0)
-		samples.encode_s16(index * 2, int(clampf(value, -0.95, 0.95) * 32767.0))
-	var stream: AudioStreamWAV = AudioStreamWAV.new()
-	stream.format = AudioStreamWAV.FORMAT_16_BITS
-	stream.mix_rate = 22050
-	stream.data = samples
-	return stream

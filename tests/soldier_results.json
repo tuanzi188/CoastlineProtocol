@@ -1,0 +1,165 @@
+{
+  "checks": [
+    {
+      "detail": "1.811",
+      "name": "stature reads human 1.72-1.95 m",
+      "pass": true
+    },
+    {
+      "detail": "-0.0025",
+      "name": "sole sits on the ground plane",
+      "pass": true
+    },
+    {
+      "detail": "0.527",
+      "name": "legs carry 48-58% of stature",
+      "pass": true
+    },
+    {
+      "detail": "0.370",
+      "name": "shoulder span 0.36-0.48 m",
+      "pass": true
+    },
+    {
+      "detail": "0.463",
+      "name": "shoulder yoke reads 0.40-0.50 m",
+      "pass": true
+    },
+    {
+      "detail": "0.359",
+      "name": "hip shelf reads 0.30-0.38 m",
+      "pass": true
+    },
+    {
+      "detail": "0.183",
+      "name": "thigh reads as a leg not a pylon",
+      "pass": true
+    },
+    {
+      "detail": "0.67",
+      "name": "shin tapers below the knee",
+      "pass": true
+    },
+    {
+      "detail": "0.223",
+      "name": "boot is foot-sized",
+      "pass": true
+    },
+    {
+      "detail": "0.093",
+      "name": "boot stays below the ankle joint",
+      "pass": true
+    },
+    {
+      "detail": "-0.0108",
+      "name": "nothing buries into the floor mid-stride",
+      "pass": true
+    },
+    {
+      "detail": "0.22",
+      "name": "foot is planted for part of the cycle",
+      "pass": true
+    },
+    {
+      "detail": "1.16",
+      "name": "knee flexes through a human range",
+      "pass": true
+    },
+    {
+      "detail": "0.067",
+      "name": "pelvis counter-rotates while walking",
+      "pass": true
+    },
+    {
+      "detail": "0.0000",
+      "name": "humerus keeps its length",
+      "pass": true
+    },
+    {
+      "detail": "0.0000",
+      "name": "ulna keeps its length",
+      "pass": true
+    },
+    {
+      "detail": "0.0011",
+      "name": "landing squash keeps boots on the deck",
+      "pass": true
+    },
+    {
+      "detail": "0.996",
+      "name": "landing squash bends the knees",
+      "pass": true
+    },
+    {
+      "detail": "0.62",
+      "name": "corpse flattens to a lying hull",
+      "pass": true
+    },
+    {
+      "detail": "1.99",
+      "name": "corpse lies out full length",
+      "pass": true
+    },
+    {
+      "detail": "-0.010",
+      "name": "corpse does not sink into the deck",
+      "pass": true
+    },
+    {
+      "detail": "0.82",
+      "name": "muzzle stays ahead of the chest",
+      "pass": true
+    },
+    {
+      "detail": "1.06",
+      "name": "muzzle sits at chest height",
+      "pass": true
+    },
+    {
+      "detail": "16",
+      "name": "rig stays under 22 mesh segments",
+      "pass": true
+    }
+  ],
+  "failed": 0,
+  "metrics": {
+    "carrier_depth_m": 0.4156,
+    "dip_knee_rad": 0.9961,
+    "dip_lowest_geometry_m": 0.0011,
+    "fallen_height_m": 0.6173,
+    "fallen_length_m": 1.9929,
+    "fallen_sink_m": -0.0096,
+    "foot_height_m": 0.0931,
+    "foot_length_m": 0.2226,
+    "head_width_m": 0.228,
+    "helmet_top_m": 1.808,
+    "hip_height_m": 0.955,
+    "humerus_delta_m": 0.0,
+    "humerus_max_m": 0.335,
+    "humerus_min_m": 0.335,
+    "knee_max_rad": 1.157,
+    "knee_min_rad": 0.2324,
+    "leg_share": 0.527478597072632,
+    "mesh_segments": 16.0,
+    "muzzle_forward_m": 0.8246,
+    "muzzle_height_m": 1.0622,
+    "pelvis_width_m": 0.3592,
+    "pelvis_yaw_rad": 0.0673,
+    "shin_taper": 0.665205479452055,
+    "shin_width_m": 0.1214,
+    "shoulder_span_m": 0.37,
+    "sole_offset_m": -0.0025,
+    "stance_foot_slip_mps": 0.0775,
+    "stance_foot_slip_peak_mps": 1.8591,
+    "stance_share": 0.22,
+    "stature_m": 1.8105,
+    "stride_lowest_geometry_m": -0.0108,
+    "thigh_width_m": 0.1825,
+    "torso_width_m": 0.4632,
+    "ulna_delta_m": 0.0,
+    "ulna_max_m": 0.265,
+    "ulna_min_m": 0.265
+  },
+  "mode": "assert",
+  "passed": 24
+}

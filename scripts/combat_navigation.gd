@@ -1,6 +1,12 @@
 extends Node
 
 const STEP: float = 2.0
+## Chunk sizes are expressed in grid cells, not rows, so one frame of the build
+## never issues more than a couple hundred physics queries even on a wide row.
+const BUILD_CHUNK: int = 48
+const LINK_CHUNK: int = 24
+## Ring search radius, in cells, that replaces AStar3D's full-graph linear scan.
+const SEARCH_RADIUS: int = 3
 var graph: AStar3D = AStar3D.new()
 var cells: Dictionary = {}
 var world: Node3D
@@ -22,9 +28,11 @@ func build(island: Node3D,exclude: Array[RID]) -> void:
 	_query.collision_mask=1
 	var space: PhysicsDirectSpaceState3D=world.get_world_3d().direct_space_state
 	var next_id: int=0
+	var scanned: int=0
 	for z: int in range(-110,66,2):
-		if z%12==0: await get_tree().process_frame
 		for x: int in range(-106,100,2):
+			scanned+=1
+			if scanned%BUILD_CHUNK==0: await get_tree().process_frame
 			var y: float=world.get_height(x,z)
 			if y<1.2: continue
 			var floor_query:=PhysicsRayQueryParameters3D.create(Vector3(x,y+0.65,z),Vector3(x,y-1.0,z),1,exclude)
@@ -40,7 +48,7 @@ func build(island: Node3D,exclude: Array[RID]) -> void:
 	var connections: int=0
 	for cell: Vector2i in cells:
 		connections+=1
-		if connections%400==0: await get_tree().process_frame
+		if connections%LINK_CHUNK==0: await get_tree().process_frame
 		var id: int=cells[cell]
 		var a: Vector3=graph.get_point_position(id)
 		for direction: Vector2i in [Vector2i(2,0),Vector2i(0,2),Vector2i(2,2),Vector2i(-2,2)]:
@@ -62,14 +70,37 @@ func _clear(p: Vector3,space: PhysicsDirectSpaceState3D) -> bool:
 
 func path(from: Vector3,to: Vector3) -> PackedVector3Array:
 	if not ready_for_paths: return PackedVector3Array()
-	var a: int=graph.get_closest_point(from)
-	var b: int=graph.get_closest_point(to)
+	var a: int=_closest_id(from)
+	var b: int=_closest_id(to)
 	if a<0 or b<0: return PackedVector3Array()
 	return graph.get_point_path(a,b,true)
 
 func nearest(point: Vector3) -> Vector3:
 	if not ready_for_paths: return point
-	return graph.get_point_position(graph.get_closest_point(point))
+	return graph.get_point_position(_closest_id(point))
+
+
+## AStar3D.get_closest_point() scans every node in the graph, which at this size
+## costs thousands of distance checks per call. Cell keys already are the world
+## coordinates quantised to STEP, so a fixed (2R+1)^2 window replaces the scan.
+## The window keeps the true nearest rather than the first hit, so a path may
+## start from the same node the linear scan would have chosen.
+func _closest_id(p: Vector3) -> int:
+	var step: int = int(STEP)
+	var reach: int = SEARCH_RADIUS*step
+	var base := Vector2i(roundi(p.x/STEP)*step,roundi(p.z/STEP)*step)
+	var best: int = -1
+	var best_distance: float = INF
+	for dx: int in range(base.x-reach,base.x+reach+1,step):
+		for dz: int in range(base.y-reach,base.y+reach+1,step):
+			var found: Variant = cells.get(Vector2i(dx,dz))
+			if found == null: continue
+			var offset: Vector3 = graph.get_point_position(int(found)) - p
+			var distance: float = offset.length_squared()
+			if distance < best_distance:
+				best_distance = distance
+				best = int(found)
+	return best if best >= 0 else graph.get_closest_point(p)
 
 func random_point(rng: RandomNumberGenerator) -> Vector3:
 	if ids.is_empty(): return Vector3.ZERO

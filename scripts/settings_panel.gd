@@ -6,6 +6,9 @@ const DEFAULTS: Dictionary = {
 	"sensitivity": 1.0,
 	"fov": 78.0,
 	"volume": 80.0,
+	"sfx": 100.0,
+	"ambient": 70.0,
+	"interface": 90.0,
 	"motion": true,
 }
 const WHITE: Color = Color("ecf2f2")
@@ -15,6 +18,9 @@ const CYAN: Color = Color("65dedc")
 var sensitivity_slider: HSlider
 var fov_slider: HSlider
 var volume_slider: HSlider
+var sfx_slider: HSlider
+var ambient_slider: HSlider
+var interface_slider: HSlider
 var motion_toggle: CheckButton
 
 var _player: Node3D
@@ -23,12 +29,15 @@ var _panel_style: StyleBoxFlat
 var _sensitivity_value: Label
 var _fov_value: Label
 var _volume_value: Label
+var _sfx_value: Label
+var _ambient_value: Label
+var _interface_value: Label
 var _configured: bool = false
 
 
 func _init() -> void:
-	position = Vector2(475.0, 190.0)
-	size = Vector2(360.0, 300.0)
+	position = Vector2(475.0, 132.0)
+	size = Vector2(360.0, 470.0)
 	custom_minimum_size = size
 	visible = false
 	mouse_filter = Control.MOUSE_FILTER_STOP
@@ -49,6 +58,9 @@ func setup(player: Node3D) -> void:
 		"sensitivity": _load_number("sensitivity", 0.25, 2.5),
 		"fov": _load_number("fov", 65.0, 100.0),
 		"volume": _load_number("volume", 0.0, 100.0),
+		"sfx": _load_number("sfx", 0.0, 100.0),
+		"ambient": _load_number("ambient", 0.0, 100.0),
+		"interface": _load_number("interface", 0.0, 100.0),
 		"motion": motion if motion is bool else DEFAULTS["motion"],
 	})
 	_apply_values()
@@ -56,6 +68,9 @@ func setup(player: Node3D) -> void:
 	sensitivity_slider.value_changed.connect(_on_slider_changed)
 	fov_slider.value_changed.connect(_on_slider_changed)
 	volume_slider.value_changed.connect(_on_slider_changed)
+	sfx_slider.value_changed.connect(_on_slider_changed)
+	ambient_slider.value_changed.connect(_on_slider_changed)
+	interface_slider.value_changed.connect(_on_slider_changed)
 	motion_toggle.toggled.connect(_on_motion_changed)
 	_configured = true
 
@@ -67,6 +82,9 @@ func get_values() -> Dictionary:
 		"sensitivity": sensitivity_slider.value,
 		"fov": fov_slider.value,
 		"volume": volume_slider.value,
+		"sfx": sfx_slider.value,
+		"ambient": ambient_slider.value,
+		"interface": interface_slider.value,
 		"motion": motion_toggle.button_pressed,
 	}
 
@@ -111,10 +129,25 @@ func _build_ui() -> void:
 	volume_slider = _slider(185.0, 0.0, 100.0, 1.0)
 	volume_slider.name = "VolumeSlider"
 
+	_label("枪声与脚步", Rect2(20, 213, 220, 22))
+	_sfx_value = _value_label(213.0)
+	sfx_slider = _slider(239.0, 0.0, 100.0, 1.0)
+	sfx_slider.name = "SFXSlider"
+
+	_label("海浪与环境", Rect2(20, 267, 220, 22))
+	_ambient_value = _value_label(267.0)
+	ambient_slider = _slider(293.0, 0.0, 100.0, 1.0)
+	ambient_slider.name = "AmbientSlider"
+
+	_label("界面提示音", Rect2(20, 321, 220, 22))
+	_interface_value = _value_label(321.0)
+	interface_slider = _slider(347.0, 0.0, 100.0, 1.0)
+	interface_slider.name = "UISlider"
+
 	motion_toggle = CheckButton.new()
 	motion_toggle.name = "MotionToggle"
 	motion_toggle.text = "视角动态"
-	motion_toggle.position = Vector2(16, 214)
+	motion_toggle.position = Vector2(16, 380)
 	motion_toggle.size = Vector2(328, 32)
 	motion_toggle.focus_mode = Control.FOCUS_NONE
 	motion_toggle.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -127,7 +160,7 @@ func _build_ui() -> void:
 	var reset_button: Button = Button.new()
 	reset_button.name = "ResetDefaults"
 	reset_button.text = "恢复默认"
-	reset_button.position = Vector2(236, 254)
+	reset_button.position = Vector2(236, 420)
 	reset_button.size = Vector2(104, 30)
 	reset_button.flat = true
 	reset_button.focus_mode = Control.FOCUS_NONE
@@ -195,6 +228,9 @@ func _set_values(values: Dictionary) -> void:
 	sensitivity_slider.set_value_no_signal(float(values["sensitivity"]))
 	fov_slider.set_value_no_signal(float(values["fov"]))
 	volume_slider.set_value_no_signal(float(values["volume"]))
+	sfx_slider.set_value_no_signal(float(values["sfx"]))
+	ambient_slider.set_value_no_signal(float(values["ambient"]))
+	interface_slider.set_value_no_signal(float(values["interface"]))
 	motion_toggle.set_pressed_no_signal(bool(values["motion"]))
 
 
@@ -202,6 +238,9 @@ func _apply_values() -> void:
 	_sensitivity_value.text = "%.2f" % sensitivity_slider.value
 	_fov_value.text = "%d°" % int(fov_slider.value)
 	_volume_value.text = "%d%%" % int(volume_slider.value)
+	_sfx_value.text = "%d%%" % int(sfx_slider.value)
+	_ambient_value.text = "%d%%" % int(ambient_slider.value)
+	_interface_value.text = "%d%%" % int(interface_slider.value)
 	if is_instance_valid(_player):
 		_player.set("mouse_sensitivity", sensitivity_slider.value)
 		_player.set("base_fov", fov_slider.value)
@@ -211,6 +250,9 @@ func _apply_values() -> void:
 		var volume: float = volume_slider.value / 100.0
 		AudioServer.set_bus_volume_db(master, linear_to_db(maxf(0.001, volume)))
 		AudioServer.set_bus_mute(master, volume_slider.value <= 0.0)
+	Audio.set_bus_level("SFX", sfx_slider.value / 100.0)
+	Audio.set_bus_level("Ambient", ambient_slider.value / 100.0)
+	Audio.set_bus_level("UI", interface_slider.value / 100.0)
 
 
 func _save_values() -> void:

@@ -7,9 +7,11 @@ const SettingsScript = preload("res://scripts/settings_panel.gd")
 const DetailsScript = preload("res://scripts/scene_detail.gd")
 const EnemyScript = preload("res://scripts/enemy.gd")
 const NavigationScript = preload("res://scripts/combat_navigation.gd")
+const QualityScript = preload("res://scripts/mobile_quality.gd")
+const ZoneWallShader = preload("res://assets/zone_wall.gdshader")
 var mobile_mode: bool=false
 var mobile_controls: Control
-var mobile_profile: Dictionary={}
+var render_profile: Dictionary={}
 var world: Node3D
 var player: CharacterBody3D
 var hud: CanvasLayer
@@ -30,10 +32,10 @@ var zone_center:=Vector3(0,0,-8)
 var zone_radius: float=132.0
 var zone_next_in: float=60.0
 var initializing: bool=true
+var match_id: int=0
 var _zone: MeshInstance3D
 var _zone_clock: float=0
-var _ambient: AudioStreamPlayer
-var _hit_audio: AudioStreamPlayer
+var _zone_warned: bool=false
 var _loot_hint: Label
 var _status: Label
 var _closest_loot: Node3D
@@ -89,10 +91,11 @@ func _ready() -> void:
 		mobile_controls=preload("res://scripts/mobile_controls.gd").new()
 		hud.get_node("TacticalHUD").add_child(mobile_controls)
 		mobile_controls.setup(self)
-		mobile_profile=preload("res://scripts/mobile_quality.gd").apply(self)
 		_loot_hint.position=Vector2(365,501)
 		_loot_hint.size=Vector2(470,34)
-	_audio()
+	# Distance culling is not a mobile-only concern: the island renders the same
+	# props for every tier, so desktop and web borrow the cheap half of the cut.
+	render_profile=QualityScript.apply(self,"mobile" if mobile_mode else "desktop")
 	_build_zone()
 	Input.mouse_mode=Input.MOUSE_MODE_VISIBLE
 	nav=NavigationScript.new()
@@ -150,6 +153,7 @@ func _restart() -> void:
 	if initializing: return
 	if is_instance_valid(mobile_controls): mobile_controls.release_all()
 	running=false
+	match_id+=1
 	for bot: Node3D in bots:
 		bot.active=false
 		bot.collision_layer=0
@@ -164,6 +168,7 @@ func _restart() -> void:
 	zone_radius=132
 	zone_next_in=60
 	_zone_clock=0
+	_zone_warned=false
 	_last_zone=""
 	player.process_mode=Node.PROCESS_MODE_INHERIT
 	player.reset_loadout()
@@ -245,8 +250,7 @@ func _player_shot() -> void:
 		if not bot.dead: bot.hear_shot(player.global_position,player)
 
 func _on_hit(killed: bool,headshot: bool,_point: Vector3) -> void:
-	_hit_audio.pitch_scale=1.3 if killed else 1
-	_hit_audio.play()
+	Audio.hit(killed,headshot)
 	if killed: hud.notify_message("爆头淘汰" if headshot else "淘汰对手")
 
 func _bot_eliminated(bot: Node3D,killer: Node) -> void:
@@ -254,19 +258,23 @@ func _bot_eliminated(bot: Node3D,killer: Node) -> void:
 	if killer==player: _shot_lock=2
 	_update_alive()
 	if running and alive_count==1 and not player.dead:
-		call_deferred("_finish",true)
+		call_deferred("_finish",true,match_id)
 
 func _player_died(_attacker: Node) -> void:
 	_update_alive()
-	call_deferred("_finish",false)
+	Audio.eliminated()
+	call_deferred("_finish",false,match_id)
 
 func _update_alive() -> void:
 	alive_count=0 if player.dead else 1
 	for bot: Node3D in bots:
 		if not bot.dead: alive_count+=1
 
-func _finish(victory: bool) -> void:
-	if finished: return
+func _finish(victory: bool,generation: int) -> void:
+	# Settlement is deferred because `died` fires from inside a bullet's damage
+	# pass. A restart issued in the same frame would otherwise be stamped out by
+	# this call, leaving the fresh match paused with frozen bots.
+	if finished or generation!=match_id: return
 	finished=true
 	won=victory
 	running=false
@@ -274,6 +282,7 @@ func _finish(victory: bool) -> void:
 	settings.hide()
 	_status.hide()
 	_loot_hint.hide()
+	Audio.outcome(victory)
 	hud.show_result(victory,player.kills,elapsed)
 
 func _build_zone() -> void:
@@ -287,7 +296,7 @@ func _build_zone() -> void:
 	cylinder.radial_segments=128
 	_zone.mesh=cylinder
 	var material:=ShaderMaterial.new()
-	material.shader=load("res://assets/zone_wall.gdshader")
+	material.shader=ZoneWallShader
 	_zone.material_override=material
 	_zone.cast_shadow=GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_zone.position=zone_center+Vector3.UP*16
@@ -299,6 +308,11 @@ func _update_zone(delta: float) -> void:
 	if elapsed<60: zone_next_in=60-elapsed
 	elif elapsed<240: zone_next_in=240-elapsed
 	else: zone_next_in=0
+	# One warning right as the ring starts moving; the player has to learn the
+	# sound means "circle closing", not "you are standing in it".
+	if not _zone_warned and elapsed>=60:
+		_zone_warned=true
+		Audio.zone_warning()
 	_zone.scale=Vector3(zone_radius,1,zone_radius)
 	_zone_clock+=delta
 	if _zone_clock<1: return
@@ -306,6 +320,7 @@ func _update_zone(delta: float) -> void:
 	var damage: int=5 if elapsed<180 else 10
 	if outside_zone(player.position):
 		player.take_damage(damage,zone_center,null)
+		Audio.zone_damage()
 		hud.notify_message("你在安全区外！向蓝圈内移动")
 	for bot: Node3D in bots:
 		if not bot.dead and outside_zone(bot.position): bot.take_damage(damage,zone_center,null)
@@ -352,13 +367,20 @@ func _update_loot() -> void:
 				distance=d
 				_closest_loot=item
 	if mobile_mode:
-		_loot_hint.text="点按「拾取」  弹药 +60 · 医疗包 +1 · 护甲 +20" if is_instance_valid(_closest_loot) else ""
+		_set_hint("点按「拾取」  弹药 +60 · 医疗包 +1 · 护甲 +20" if is_instance_valid(_closest_loot) else "")
 	else:
-		_loot_hint.text="F  搜取补给  /  弹药 +60 · 医疗包 +1 · 护甲 +20" if is_instance_valid(_closest_loot) else "H 医疗包 ×%d  /  寻找掩体，警惕枪声" % player.medkits
+		_set_hint("F  搜取补给  /  弹药 +60 · 医疗包 +1 · 护甲 +20" if is_instance_valid(_closest_loot) else "H 医疗包 ×%d  /  寻找掩体，警惕枪声" % player.medkits)
+
+## Re-shaping a Label costs more than the string compare, and the hint is only
+## ever read at a handful of distinct states per match.
+func _set_hint(text: String) -> void:
+	if _loot_hint.text != text:
+		_loot_hint.text = text
 
 func _collect_loot() -> void:
 	if not is_instance_valid(_closest_loot): return
 	player.collect_supply()
+	Audio.pickup()
 	loot.erase(_closest_loot)
 	_closest_loot.queue_free()
 	_closest_loot=null
@@ -389,45 +411,6 @@ func _build_status() -> void:
 	_loot_hint.mouse_filter=Control.MOUSE_FILTER_IGNORE
 	hud.get_node("TacticalHUD").add_child(_loot_hint)
 	_loot_hint.hide()
-
-func _audio() -> void:
-	var rng:=RandomNumberGenerator.new()
-	rng.seed=739
-	var samples:=PackedByteArray()
-	samples.resize(22050*6*2)
-	var noise: float=0
-	for i: int in range(22050*6):
-		var t: float=float(i)/22050
-		noise=lerpf(noise,rng.randf_range(-1,1),0.045)
-		samples.encode_s16(i*2,int(noise*(0.25+0.12*sin(t*TAU/6))*32767))
-	var stream:=AudioStreamWAV.new()
-	stream.format=AudioStreamWAV.FORMAT_16_BITS
-	stream.mix_rate=22050
-	stream.data=samples
-	stream.loop_mode=AudioStreamWAV.LOOP_FORWARD
-	stream.loop_end=22050*6
-	_ambient=AudioStreamPlayer.new()
-	_ambient.stream=stream
-	_ambient.volume_db=-25
-	add_child(_ambient)
-	_ambient.play()
-	var ping:=PackedByteArray()
-	ping.resize(2205*2)
-	for i: int in range(2205):
-		var t: float=float(i)/22050
-		ping.encode_s16(i*2,int(sin(t*TAU*1100)*exp(-t*55)*0.35*32767))
-	var hit_stream:=AudioStreamWAV.new()
-	hit_stream.format=AudioStreamWAV.FORMAT_16_BITS
-	hit_stream.mix_rate=22050
-	hit_stream.data=ping
-	_hit_audio=AudioStreamPlayer.new()
-	_hit_audio.stream=hit_stream
-	_hit_audio.volume_db=-18
-	add_child(_hit_audio)
-
-func _exit_tree() -> void:
-	if is_instance_valid(_ambient): _ambient.stop()
-	if is_instance_valid(_hit_audio): _hit_audio.stop()
 
 func _notification(what: int) -> void:
 	if what==NOTIFICATION_APPLICATION_FOCUS_OUT and running and not paused and not "--mobile-test" in OS.get_cmdline_user_args():
