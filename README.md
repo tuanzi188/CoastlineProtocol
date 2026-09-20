@@ -101,9 +101,20 @@ scripts/hud.gd                 生存 HUD、伤害方向、结算
 scripts/settings_panel.gd      持久化设置
 scripts/world.gd               地形与建筑
 scripts/scene_detail.gd        场景细化
+scripts/legacy/                旧训练玩法（course.gd / target.gd），未接入当前入口
 ```
 
 旧训练脚本仅作为未接入的历史实现保留在工程中，当前入口不加载这些玩法。
+
+## 开发工具
+
+仓库只保留工程本体，不含工具依赖副本，需要时按需安装。
+
+```bat
+python tools\setup_gdcheck.py
+```
+
+装入 gdtoolkit 4.5.0 到 `tools\gdcheck\`（已忽略），随后可用 `tools\gdcheck\bin\gdlint.exe scripts` 做 GDScript 静态检查。字体子集化用 `tools\subset_font.py`，依赖 fontTools。
 
 ## 当前验证
 

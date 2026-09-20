@@ -1,29 +1,34 @@
 # Godot 4 工程缓存
 .godot/
 
-# 便携版 Godot 解压目录（单个 exe 155MB 超 GitHub 100MB 限制；仓库保留 tools/godot.zip）
+# 便携版 Godot 解压目录（单个 exe 超 GitHub 100MB 限制；压缩包走 GitHub Release）
 /tools/godot/
 
-# 网页导出产物（可用 Godot 重新导出，或按需单独发布）
-/build/
-# Godot Web 导出构建文件（体积大、可由导出流程再生成，不入库）
-/index.wasm
-/index.pck
+# 本地静态检查工具，按需由 tools/setup_gdcheck.py 安装
+/tools/gdcheck/
 
-# Godot 导入缓存与二进制资产
-*.import
-*.glb
+# Godot Web 导出产物与部署文件（只在 gh-pages 分支维护）
+/build/
+/index.*
+/_headers
+
+# 大型发行资产（走 GitHub Release 分发，不入仓库）
+*.zip
+
+# 本地测试基线截图
+/tests/art_before/
 
 # 日志与临时文件
 *.log
 *.tmp
 *.bak
+*.bak_*
 
-# Python 缓存（gdcheck 等工具）
+# Python 缓存
 __pycache__/
 *.pyc
 *.pyd
 
-# 大型发行资产（改入 GitHub Release 分发，不入仓库）
-*.zip
-/tools/godot/
+# 注意：*.import 与 *.glb 必须入库。
+# .import 承载 Godot 4 的导入设置与 UID，缺失会让新资产退回默认导入参数；
+# .glb 是运行期模型资产（assets/ 下 35 个），忽略会直接导致缺模型。
