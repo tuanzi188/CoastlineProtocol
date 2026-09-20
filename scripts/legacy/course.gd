@@ -1,6 +1,6 @@
 extends Node3D
 
-const TargetScript = preload("res://scripts/target.gd")
+const TargetScript = preload("res://scripts/legacy/target.gd")
 var game: Node3D
 var running: bool = false
 var remaining: float = 180.0
