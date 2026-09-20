@@ -6,7 +6,7 @@
 
 Windows 双击 **Launch.bat**，点击 **开始行动**。工程附有便携版 Godot，首次启动会构建 AI 通行路径，等待数秒即可。
 
-> 从 GitHub 克隆后：先解压 `tools/godot.zip` 到 `tools/godot/`（或自行安装 Godot 4.5+），再双击 Launch.bat。
+> 从 GitHub 克隆后：先前往 **GitHub Releases** 下载 `tools/godot.zip`，解压到 `tools/godot/`（或自行安装 Godot 4.5+），再双击 Launch.bat。大文件已改为 Releases 分发，不入仓库。
 
 继续开发：Godot 4.5 或更新版本导入 `project.godot`，按 F5。
 

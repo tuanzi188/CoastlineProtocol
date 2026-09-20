@@ -23,3 +23,7 @@
 __pycache__/
 *.pyc
 *.pyd
+
+# 大型发行资产（改入 GitHub Release 分发，不入仓库）
+*.zip
+/tools/godot/
