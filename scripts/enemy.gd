@@ -11,7 +11,7 @@ var health: int = 100
 var dead: bool = false
 var active: bool = false
 var last_headshot: bool = false
-var state: String = "宸￠€?
+var state: String = "巡逻"
 var ammo: int = 24
 var shots_fired: int = 0
 var damage_dealt: int = 0
@@ -138,11 +138,11 @@ func _physics_process(delta: float) -> void:
 	var escaping: bool = offset.length() > maxf(1.0, radius - 5.0)
 	var speed: float = 2.5
 	if escaping:
-		state = "杩涘湀"
+		state = "进圈"
 		_set_goal(_ground(center + offset.normalized() * maxf(0.0, radius * 0.60)))
 		speed = 4.3
 	elif _visible_target and is_instance_valid(target):
-		state = "鎹㈠脊" if _reload_left > 0.0 else "浜ゆ垬"
+		state = "换弹" if _reload_left > 0.0 else "交战"
 		speed = 4.3 if _reload_left > 0.0 or health < 35 else 2.5
 		if _strafe_left <= 0.0:
 			_strafe_left = 2.0
@@ -157,7 +157,7 @@ func _physics_process(delta: float) -> void:
 				advance = -7.0
 			_set_goal(_ground(global_position + toward * advance + sideways * _rng.randf_range(3.0, 6.0)))
 	elif _memory_left > 0.0:
-		state = "鎹㈠脊" if _reload_left > 0.0 else "鎼滅储"
+		state = "换弹" if _reload_left > 0.0 else "搜索"
 		_set_goal(_last_seen)
 		speed = 4.3
 		if _flat_distance(global_position, _last_seen) < 1.2:
@@ -165,7 +165,7 @@ func _physics_process(delta: float) -> void:
 			rotation.y += delta * 0.8
 	else:
 		target = null
-		state = "鎹㈠脊" if _reload_left > 0.0 else "宸￠€?
+		state = "换弹" if _reload_left > 0.0 else "巡逻"
 		if not _has_goal or _flat_distance(global_position, _goal) < 1.2:
 			var nav: Object = game.get("nav") as Object
 			var point: Vector3 = nav.call("random_point", _rng) as Vector3
@@ -251,7 +251,7 @@ func hear_shot(source: Vector3, shooter: Node3D) -> void:
 	# Store only the sound location; do not acquire or track the unseen shooter.
 	_last_seen = _ground(source)
 	_memory_left = 6.0
-	state = "鎼滅储"
+	state = "搜索"
 	_set_goal(_last_seen)
 
 
@@ -414,7 +414,7 @@ func _apply_damage(amount: int, source: Vector3, attacker: Node) -> void:
 	if health <= 0:
 		dead = true
 		active = false
-		state = "闃典骸"
+		state = "阵亡"
 		target = null
 		velocity = Vector3.ZERO
 		_capsule.set_deferred("disabled", true)
@@ -425,7 +425,7 @@ func _apply_damage(amount: int, source: Vector3, attacker: Node) -> void:
 		_last_seen = _ground(source)
 		_memory_left = 6.0
 		_set_goal(_last_seen)
-		state = "鎼滅储"
+		state = "搜索"
 
 
 ## Wall occlusion for the listener, not the target: a shot that is perfectly

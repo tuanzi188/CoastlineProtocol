@@ -14,6 +14,18 @@ const PACKS: Array[String] = [
 	"res://assets/characters/Barbarian.glb",
 	"res://assets/characters/Mage.glb",
 ]
+# One restrained uniform palette per imported character; no skin/mesh reshaping.
+const UNIFORMS: Array[Dictionary] = [
+	{"cloth": Color("535b49"), "pants": Color("343a33"), "helmet": Color("3c4438")},
+	{"cloth": Color("454d49"), "pants": Color("2e3435"), "helmet": Color("343c39")},
+	{"cloth": Color("626556"), "pants": Color("41463d"), "helmet": Color("484e41")},
+	{"cloth": Color("565e5e"), "pants": Color("373e40"), "helmet": Color("41494a")},
+]
+# Shared immutable resources: instance overrides never edit imported materials.
+static var _paint_cache: Dictionary = {}
+static var _face_cache: Dictionary = {}
+static var _rifle_mesh: ArrayMesh
+
 const RUN_SPEED: float = 4.3
 const NECK_HEIGHT: float = 1.620
 const GEAR_KEEP: Array[String] = ["Body", "Head", "Helmet", "Cape", "LegLeft", "LegRight",
@@ -51,51 +63,60 @@ func build(variant: int = 0) -> void:
 	_player = find_child("AnimationPlayer", true, false) as AnimationPlayer
 	# The rig is advanced from animate() so a paused match freezes mid-pose and
 	# the preview harness can step it deterministically.
+	_player.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
 	_player.set_process(false)
 	_player.speed_scale = 1.0
 	_player.play("Idle")
 	_player.advance(0.0)
 	_strip_gear()
-	_recolor_military()
+	_recolor_military(variant)
 	_attach_rifle()
 	# Bone poses are only valid once the skin has been evaluated, so the stature
 	# fit is deferred to the first animate() call rather than done here.
 	_fit_stature()
 
-
-
-## Override the medieval palette with modern tactical colors so the KayKit
-## meshes read as soldiers rather than knights. We replace surface materials
-## on the body parts with flat military tones and hide the cape.
-func _recolor_military() -> void:
-	var body_mat := _paint(Color("4a5240"), 0.05)    # olive drab
-	var armor_mat := _paint(Color("3a4238"), 0.35)   # dark tactical vest
-	var head_mat := _paint(Color("6b5d4f"), 0.0)     # skin tone
-	var helmet_mat := _paint(Color("2e3329"), 0.3)  # dark helmet
-	var pants_mat := _paint(Color("2d3130"), 0.1)   # dark combat pants
-	var boot_mat := _paint(Color("1e1e1e"), 0.15)    # black boots
-	for node: Node in find_children("*", "MeshInstance3D", true, false):
+## Dry cloth, darker carrier, and matte polymer rather than shiny metal arms.
+## The GLBs combine face/eyes/hair in one surface; retain that authored atlas
+## instead of painting the entire head skin-brown. No speculative visor geometry.
+func _recolor_military(variant: int) -> void:
+	var palette: Dictionary = UNIFORMS[posmod(variant, UNIFORMS.size())]
+	var cloth: Color = palette["cloth"]
+	var sleeve_mat := _paint(cloth, 0.0, 0.94, 0.18)
+	var carrier_mat := _paint(cloth.darkened(0.22), 0.0, 0.90, 0.20)
+	var helmet_mat := _paint(palette["helmet"], 0.0, 0.78, 0.28)
+	var pants_mat := _paint(palette["pants"], 0.0, 0.95, 0.18)
+	var boot_mat := _paint(Color("252a29"), 0.0, 0.88, 0.22)
+	for node: Node in _model.find_children("*", "MeshInstance3D", true, false):
 		var mi: MeshInstance3D = node as MeshInstance3D
 		var n: String = String(mi.name)
-		# Hide the cape — it reads as medieval.
 		if n.contains("Cape"):
 			mi.hide()
 			continue
-		var mat: StandardMaterial3D = body_mat
-		if n.contains("Head"):
-			mat = head_mat
-		elif n.contains("Helmet"):
+		if not mi.visible or mi.mesh == null:
+			continue
+		var mat: StandardMaterial3D = sleeve_mat
+		if n.ends_with("Helmet"):
 			mat = helmet_mat
-		elif n.contains("Body"):
-			mat = body_mat
+		elif n.ends_with("Body"):
+			mat = carrier_mat
 		elif n.contains("Leg"):
 			mat = pants_mat
-		elif n.contains("Arm"):
-			mat = armor_mat
 		elif n.contains("Boot") or n.contains("Foot") or n.contains("Shoe"):
 			mat = boot_mat
 		for i: int in range(mi.mesh.get_surface_count()):
-			mi.set_surface_override_material(i, mat)
+			if n.ends_with("Head"):
+				var source := mi.mesh.surface_get_material(i) as StandardMaterial3D
+				if source != null:
+					if not _face_cache.has(source):
+						var face := source.duplicate() as StandardMaterial3D
+						face.albedo_color = Color("c6bcb0")
+						face.metallic = 0.0
+						face.roughness = 0.86
+						face.metallic_specular = 0.22
+						_face_cache[source] = face
+					mi.set_surface_override_material(i, _face_cache[source])
+			else:
+				mi.set_surface_override_material(i, mat)
 
 ## The imported file carries every weapon and shield in the pack on the hand
 ## slots, so anything that is not armour has to go before the rifle is added.
@@ -194,23 +215,23 @@ func _attach_rifle() -> void:
 	_rifle = Node3D.new()
 	_rifle.name = "Rifle"
 	socket.add_child(_rifle)
-	var paints: Dictionary = {
-		"steel": _paint(Color("2f373b"), 0.72),
-		"armor": _paint(Color("333f39"), 0.10),
-		"boots": _paint(Color("242826"), 0.06),
-		"webbing": _paint(Color("857f68")),
-		"dark": _paint(Color("463529")),
-		"lens": _paint(Color("26404a"), 0.55),
-	}
-	var form: RefCounted = Form.new()
-	_rifle_form(form)
-	var mesh: ArrayMesh = form.commit()
-	var keys: Array = form.surface_keys()
-	for index: int in range(mesh.get_surface_count()):
-		mesh.surface_set_material(index, paints[keys[min(index, keys.size() - 1)]])
+	if _rifle_mesh == null:
+		var paints: Dictionary = {
+			"steel": _paint(Color("303739"), 0.65, 0.58, 0.40),
+			"armor": _paint(Color("343e37"), 0.0, 0.80, 0.26),
+			"boots": _paint(Color("242826"), 0.0, 0.90, 0.20),
+			# Opaque optic glass: smoother than cloth/polymer, no extra pass.
+			"lens": _paint(Color("293e43"), 0.0, 0.24, 0.55),
+		}
+		var form: RefCounted = Form.new()
+		_rifle_form(form)
+		_rifle_mesh = form.commit()
+		var keys: Array = form.surface_keys()
+		for index: int in range(_rifle_mesh.get_surface_count()):
+			_rifle_mesh.surface_set_material(index, paints[keys[index]])
 	var instance: MeshInstance3D = MeshInstance3D.new()
 	instance.name = "RifleMesh"
-	instance.mesh = mesh
+	instance.mesh = _rifle_mesh
 	instance.transform = Transform3D(Basis.from_euler(Vector3(0, PI, 0)) * Basis.from_scale(Vector3(0.82, 0.82, 0.82)), Vector3(0.02, -0.06, -0.14))
 	_rifle.add_child(instance)
 	muzzle = Marker3D.new()
@@ -219,11 +240,16 @@ func _attach_rifle() -> void:
 	_rifle.add_child(muzzle)
 
 
-func _paint(color: Color, metal: float = 0.0) -> StandardMaterial3D:
+func _paint(color: Color, metal: float = 0.0, roughness: float = 0.90, specular: float = 0.20) -> StandardMaterial3D:
+	var key: String = "%s/%.3f/%.3f/%.3f" % [color.to_html(), metal, roughness, specular]
+	if _paint_cache.has(key):
+		return _paint_cache[key] as StandardMaterial3D
 	var material: StandardMaterial3D = StandardMaterial3D.new()
 	material.albedo_color = color
-	material.roughness = 0.55 if metal == 0.0 else 0.42
+	material.roughness = roughness
 	material.metallic = metal
+	material.metallic_specular = specular
+	_paint_cache[key] = material
 	return material
 
 

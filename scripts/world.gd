@@ -133,47 +133,62 @@ func _tree_fallback(pos: Vector3, s: float) -> void:
 		add_child(crown)
 
 func _glb_house(pos: Vector3, angle: float, idx: int) -> void:
-	var y: float = get_height(pos.x, pos.z)
+	# These three interiors and their scene_detail attachments require real door gaps.
+	# The imported whole-house meshes have closed facades, not usable entrances.
+	var central_sizes: Array[Vector3] = [Vector3(12, 7.1, 10), Vector3(11, 7, 11), Vector3(12, 4, 10)]
+	if idx >= 0 and idx < central_sizes.size():
+		_house(pos, central_sizes[idx], "ivory" if idx == 0 else "blue", angle)
+		return
 	if _house_scenes.is_empty(): return
 	var scene: PackedScene = _house_scenes[idx % _house_scenes.size()]
 	var root := Node3D.new()
-	root.position = Vector3(pos.x, y, pos.z)
+	root.position = Vector3(pos.x, get_height(pos.x, pos.z), pos.z)
 	root.rotation.y = angle
 	add_child(root)
 	var inst: Node3D = scene.instantiate()
-	inst.scale = Vector3(1.35, 1.35, 1.35)
 	root.add_child(inst)
-	# Enterable: 4 walls with front door gap + floor.
-	var W: float = 8.5
-	var D: float = 7.5
-	var H: float = 4.0
-	var T: float = 0.25
-	var door_w: float = 1.6
+	var meshes: Array[MeshInstance3D] = []
+	_glb_house_meshes(inst, meshes)
+	if meshes.is_empty():
+		root.queue_free()
+		return
+	var bounds := AABB()
+	var first: bool = true
+	for visual: MeshInstance3D in meshes:
+		var local: Transform3D = root.global_transform.affine_inverse() * visual.global_transform
+		var mesh_bounds: AABB = local * visual.get_aabb()
+		bounds = mesh_bounds if first else bounds.merge(mesh_bounds)
+		first = false
+	if bounds.size.x <= 0.001 or bounds.size.y <= 0.001 or bounds.size.z <= 0.001:
+		root.queue_free()
+		return
+	# Fit the full transformed asset to its established peripheral footprint.
+	# Uniform scaling preserves doors/windows and avoids stretching roof geometry.
+	var factor: float = minf(8.5 / bounds.size.x, 7.5 / bounds.size.z)
+	var anchor := Vector3(bounds.get_center().x, bounds.position.y, bounds.get_center().z)
+	var fit := Transform3D(Basis.IDENTITY.scaled(Vector3.ONE * factor), -anchor * factor)
+	inst.transform = fit * inst.transform
+	# Closed decorative buildings collide exactly where the visible triangles are.
+	# Bake the scale into vertices so physics bodies retain unit scale.
 	var body := StaticBody3D.new()
 	root.add_child(body)
-	var wall_data = [
-		Vector3(-W/2, H/2, 0), Vector3(T, H, D),
-		Vector3(W/2, H/2, 0), Vector3(T, H, D),
-		Vector3(0, H/2, -D/2), Vector3(W, H, T),
-	]
-	var seg_w: float = (W - door_w) / 2.0
-	wall_data.append(Vector3(-(door_w/2 + seg_w/2), H/2, D/2))
-	wall_data.append(Vector3(seg_w, H, T))
-	wall_data.append(Vector3(door_w/2 + seg_w/2, H/2, D/2))
-	wall_data.append(Vector3(seg_w, H, T))
-	for i: int in range(0, wall_data.size(), 2):
-		var cs := CollisionShape3D.new()
-		var box := BoxShape3D.new()
-		box.size = wall_data[i+1]
-		cs.shape = box
-		cs.position = wall_data[i]
-		body.add_child(cs)
-	var floor_cs := CollisionShape3D.new()
-	var floor_box := BoxShape3D.new()
-	floor_box.size = Vector3(W, 0.2, D)
-	floor_cs.shape = floor_box
-	floor_cs.position = Vector3(0, 0.1, 0)
-	body.add_child(floor_cs)
+	for visual: MeshInstance3D in meshes:
+		var local: Transform3D = root.global_transform.affine_inverse() * visual.global_transform
+		var faces: PackedVector3Array = visual.mesh.get_faces()
+		if faces.is_empty(): continue
+		for i: int in range(faces.size()):
+			faces[i] = local * faces[i]
+		var shape := ConcavePolygonShape3D.new()
+		shape.set_faces(faces)
+		var collision := CollisionShape3D.new()
+		collision.shape = shape
+		body.add_child(collision)
+
+func _glb_house_meshes(node: Node, meshes: Array[MeshInstance3D]) -> void:
+	if node is MeshInstance3D and (node as MeshInstance3D).mesh != null:
+		meshes.append(node as MeshInstance3D)
+	for child: Node in node.get_children():
+		_glb_house_meshes(child, meshes)
 
 func _batch_static_boxes() -> void:
 	var batches: Dictionary = {}
@@ -253,6 +268,10 @@ func _palette() -> void:
 		m.albedo_color = Color(colors[key])
 		m.roughness = 0.87
 		materials[key] = m
+	for key: String in ["ivory","blue","concrete"]:
+		preload("res://scripts/surface_finish.gd").apply(materials[key],"plaster",0.6)
+	for key: String in ["wood","wood_light"]:
+		preload("res://scripts/surface_finish.gd").apply(materials[key],"wood",0.9)
 	var glass: StandardMaterial3D = materials["glass"]
 	glass.metallic = 0.3
 	glass.roughness = 0.22
@@ -262,10 +281,9 @@ func _palette() -> void:
 	var road_paint := StandardMaterial3D.new()
 	road_paint.albedo_color = Color("ded8ba")
 	road_paint.roughness = 0.87
-	road_paint.distance_fade_enabled = true
 	road_paint.distance_fade_mode = BaseMaterial3D.DISTANCE_FADE_PIXEL_ALPHA
-	road_paint.distance_fade_phase_long = 6.0
-	road_paint.distance_fade_phase_short = 1.8
+	road_paint.distance_fade_min_distance = 1.8
+	road_paint.distance_fade_max_distance = 6.0
 	materials["road_paint"] = road_paint
 
 func _environment() -> void:

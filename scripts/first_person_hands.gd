@@ -10,8 +10,12 @@ var _trigger: Node3D
 var _trigger_rest: Vector3
 var _magazine: Node3D
 var _magazine_rest: Vector3
+var _built: bool = false
+var render_mesh_count: int = 0
 
 func build(magazine: Node3D) -> void:
+	if _built: return
+	_built=true
 	_magazine=magazine
 	_magazine_rest=magazine.position
 	_materials["fabric"]=_surface(Color("45514b"),0.97,1.0)
@@ -28,6 +32,11 @@ func build(magazine: Node3D) -> void:
 	add_child(right)
 	_left_hand()
 	_right_hand()
+	var finish=preload("res://scripts/weapon_finish.gd")
+	finish.merge_children(left,"SupportGlove")
+	finish.merge_children(right,"TriggerGlove")
+	finish.merge_children(_trigger,"TriggerFingerMesh")
+	render_mesh_count=3
 	_left_rest=left.transform
 
 func animate(delta: float,reloading: bool,progress: float,kick: float) -> void:
@@ -51,7 +60,7 @@ func reset_pose() -> void:
 
 func _surface(color: Color,roughness: float,weave: float) -> ShaderMaterial:
 	var shader:=Shader.new()
-	shader.code="shader_type spatial; render_mode cull_disabled; uniform vec4 base_color:source_color; uniform float roughness=0.9; uniform float weave=0.5; void fragment(){float grain=fract(sin(dot(UV*340.0,vec2(12.9898,78.233)))*43758.5453); float thread=sin(UV.x*950.0)*sin(UV.y*660.0); float shade=1.0+(grain-0.5)*0.07+thread*weave*0.028; ALBEDO=base_color.rgb*shade; ROUGHNESS=roughness;}"
+	shader.code="shader_type spatial; render_mode cull_disabled; uniform vec4 base_color:source_color; uniform float roughness=0.9; uniform float weave=0.5; void fragment(){vec2 footprint=fwidth(UV); float detail=1.0-smoothstep(0.003,0.015,max(footprint.x,footprint.y)); float grain=fract(sin(dot(UV*180.0,vec2(12.9898,78.233)))*43758.5453); float thread=sin(UV.x*420.0)*sin(UV.y*320.0); float panel=pow(abs(sin(UV.x*3.14159)),0.5); float shade=0.95+panel*0.05+detail*((grain-0.5)*0.06+thread*weave*0.024); ALBEDO=base_color.rgb*shade; ROUGHNESS=clamp(roughness+(grain-0.5)*0.04*detail,0.0,1.0);}"
 	var m:=ShaderMaterial.new()
 	m.shader=shader
 	m.set_shader_parameter("base_color",color)

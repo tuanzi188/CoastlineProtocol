@@ -575,12 +575,12 @@ func _fire() -> void:
 	query.exclude = [get_rid()]
 	query.hit_from_inside = true
 	var result: Dictionary = get_world_3d().direct_space_state.intersect_ray(query)
+	var muzzle_origin: Vector3 = _muzzle.global_position
 	if not result.is_empty():
 		end = result["position"] as Vector3
 		# Muzzle distance check: if the camera hit point is beyond the muzzle's
 		# reach (thin wall between camera and muzzle), the barrel doesn't actually
 		# reach it — fall back to the wall in front of the muzzle.
-		var muzzle_origin: Vector3 = _muzzle.global_position
 		var muzzle_dist_sq: float = origin.distance_squared_to(muzzle_origin)
 		if origin.distance_squared_to(end) > muzzle_dist_sq * 1.05:
 			var barrel_query: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(origin, muzzle_origin, HIT_MASK)
@@ -748,40 +748,41 @@ func _limb(parent: Node3D, radius: float, length: float, at: Vector3, material: 
 	return instance
 
 
+func _bevel(parent: Node3D, size: Vector3, at: Vector3, material: Material, chamfer: float = 0.004, taper: float = 1.0, rake: float = 0.0) -> MeshInstance3D:
+	return _mesh(parent, preload("res://scripts/weapon_finish.gd").beveled_box(size, chamfer, taper, rake), at, material)
+
+
 func _build_weapon() -> void:
 	_weapon = Node3D.new()
 	_weapon.name = "TidebreakerRifle"
 	_weapon.position = Vector3(0.265, -0.235, -0.40)
 	camera.add_child(_weapon)
-	var graphite: StandardMaterial3D = _material(Color("252e32"), 0.65, 0.38)
-	var steel: StandardMaterial3D = _material(Color("596468"), 0.78, 0.32)
-	var dark: StandardMaterial3D = _material(Color("101719"), 0.25, 0.65)
-	var sand: StandardMaterial3D = _material(Color("3a3a30"), 0.15, 0.76)
-	var rubber: StandardMaterial3D = _material(Color("30352e"), 0.0, 0.94)
-	var teal: StandardMaterial3D = _material(Color("398c87"), 0.3, 0.48)
-	var fabric: StandardMaterial3D = _material(Color("485c58"), 0.0, 0.95)
-	var glove: StandardMaterial3D = _material(Color("2a2a2a"), 0.0, 0.9)
+	var graphite: StandardMaterial3D = _material(Color("41494b"), 0.48, 0.43)
+	var steel: StandardMaterial3D = _material(Color("69716f"), 0.72, 0.36)
+	var dark: StandardMaterial3D = _material(Color("151b1c"), 0.15, 0.72)
+	var olive: StandardMaterial3D = _material(Color("565b47"), 0.12, 0.69)
+	var rubber: StandardMaterial3D = _material(Color("30362f"), 0.0, 0.91)
 	var sight_dot: StandardMaterial3D = _material(Color("8cdec6"), 0.0, 0.5, true)
 	# Angular receiver with a two-tone upper, side plates and service details.
-	_box(_weapon, Vector3(0.105, 0.12, 0.33), Vector3(0.0, -0.02, -0.10), graphite)
-	_box(_weapon, Vector3(0.095, 0.048, 0.34), Vector3(0.0, 0.044, -0.11), sand)
-	_box(_weapon, Vector3(0.112, 0.052, 0.18), Vector3(0.0, -0.071, -0.095), dark)
+	_bevel(_weapon, Vector3(0.105, 0.12, 0.33), Vector3(0.0, -0.02, -0.10), graphite, 0.007)
+	_bevel(_weapon, Vector3(0.095, 0.048, 0.34), Vector3(0.0, 0.044, -0.11), olive, 0.005)
+	_bevel(_weapon, Vector3(0.112, 0.052, 0.18), Vector3(0.0, -0.071, -0.095), graphite)
 	_box(_weapon, Vector3(0.006, 0.028, 0.102), Vector3(0.056, 0.013, -0.108), dark)
 	_box(_weapon, Vector3(0.009, 0.013, 0.072), Vector3(0.059, 0.014, -0.11), steel)
 	_box(_weapon, Vector3(0.018, 0.016, 0.028), Vector3(0.066, 0.022, -0.043), graphite)
-	_box(_weapon, Vector3(0.008, 0.018, 0.058), Vector3(0.055, -0.043, 0.006), teal)
+	_box(_weapon, Vector3(0.008, 0.018, 0.058), Vector3(0.055, -0.043, 0.006), graphite)
 	for z: float in [-0.23, -0.035, 0.035]:
 		var pin: MeshInstance3D = _tube(_weapon, 0.007, 0.113, Vector3(0.0, -0.026, z), steel, 8)
 		pin.rotation = Vector3(0.0, 0.0, PI * 0.5)
 	# Adjustable skeleton stock and shoulder pad.
 	_tube(_weapon, 0.026, 0.18, Vector3(0.0, -0.015, 0.14), steel)
-	_box(_weapon, Vector3(0.083, 0.063, 0.18), Vector3(0.0, -0.015, 0.22), sand)
-	var stock_brace: MeshInstance3D = _box(_weapon, Vector3(0.052, 0.045, 0.17), Vector3(0.0, -0.075, 0.21), graphite)
+	_bevel(_weapon, Vector3(0.083, 0.063, 0.18), Vector3(0.0, -0.015, 0.22), olive, 0.007)
+	var stock_brace: MeshInstance3D = _bevel(_weapon, Vector3(0.052, 0.045, 0.17), Vector3(0.0, -0.075, 0.21), graphite)
 	stock_brace.rotation.x = -0.30
-	_box(_weapon, Vector3(0.092, 0.16, 0.035), Vector3(0.0, -0.055, 0.315), rubber)
+	_bevel(_weapon, Vector3(0.092, 0.16, 0.035), Vector3(0.0, -0.055, 0.315), rubber)
 	# Floating handguard, cooling slots and segmented accessory rails.
-	_box(_weapon, Vector3(0.088, 0.093, 0.285), Vector3(0.0, -0.005, -0.414), sand)
-	_box(_weapon, Vector3(0.076, 0.029, 0.26), Vector3(0.0, -0.059, -0.414), graphite)
+	_bevel(_weapon, Vector3(0.088, 0.093, 0.285), Vector3(0.0, -0.005, -0.414), olive, 0.008)
+	_bevel(_weapon, Vector3(0.076, 0.029, 0.26), Vector3(0.0, -0.059, -0.414), graphite)
 	for index: int in range(7):
 		var z: float = -0.30 - float(index) * 0.035
 		for side: float in [-1.0, 1.0]:
@@ -791,20 +792,26 @@ func _build_weapon() -> void:
 	for index: int in range(23):
 		_box(_weapon, Vector3(0.048, 0.009, 0.013), Vector3(0.0, 0.081, 0.045 - float(index) * 0.026), graphite)
 	_tube(_weapon, 0.019, 0.22, Vector3(0.0, -0.004, -0.635), steel)
-	_tube(_weapon, 0.028, 0.085, Vector3(0.0, -0.004, -0.755), graphite)
-	_tube(_weapon, 0.020, 0.006, Vector3(0.0, -0.004, -0.80), dark)
+	var brake: MeshInstance3D = _tube(_weapon, 0.028, 0.085, Vector3(0.0, -0.004, -0.755), graphite)
+	(brake.mesh as CylinderMesh).cap_bottom = false
+	_mesh(_weapon, preload("res://scripts/weapon_finish.gd").crown(), Vector3(0.0, -0.004, -0.803), steel)
+	_tube(_weapon, 0.011, 0.002, Vector3(0.0, -0.004, -0.789), dark)
 	for index: int in range(3):
 		_box(_weapon, Vector3(0.057, 0.009, 0.009), Vector3(0.0, 0.009, -0.735 - float(index) * 0.02), dark)
 	# Magazine, spine and stamped ribs.
 	var magazine: Node3D = Node3D.new()
+	magazine.name = "Magazine"
 	magazine.position = Vector3(0.0, -0.14, -0.17)
 	magazine.rotation.x = -0.16
 	_weapon.add_child(magazine)
-	_box(magazine, Vector3(0.072, 0.17, 0.092), Vector3.ZERO, graphite)
-	_box(magazine, Vector3(0.079, 0.022, 0.10), Vector3(0.0, -0.083, 0.0), rubber)
+	_bevel(magazine, Vector3(0.072, 0.17, 0.092), Vector3.ZERO, olive, 0.005, 0.90, -0.014)
+	_bevel(magazine, Vector3(0.073, 0.022, 0.093), Vector3(0.0, -0.083, -0.014), rubber, 0.003)
 	for index: int in range(4):
-		_box(magazine, Vector3(0.075, 0.006, 0.083), Vector3(0.0, -0.052 + float(index) * 0.032, 0.0), steel)
-	var grip: MeshInstance3D = _box(_weapon, Vector3(0.062, 0.139, 0.063), Vector3(0.0, -0.13, 0.027), rubber)
+		var rib_y: float = -0.052 + float(index) * 0.032
+		var depth: float = 0.5 - rib_y / 0.17
+		_bevel(magazine, Vector3(0.075 * lerpf(1.0, 0.90, depth), 0.006, 0.089 * lerpf(1.0, 0.90, depth)), Vector3(0.0, rib_y, -0.014 * depth), graphite, 0.001)
+	preload("res://scripts/weapon_finish.gd").merge_children(magazine, "MagazineBody")
+	var grip: MeshInstance3D = _bevel(_weapon, Vector3(0.062, 0.139, 0.063), Vector3(0.0, -0.13, 0.027), rubber, 0.007)
 	grip.rotation.x = -0.28
 	_box(_weapon, Vector3(0.018, 0.012, 0.095), Vector3(0.0, -0.115, -0.049), graphite)
 	_box(_weapon, Vector3(0.018, 0.049, 0.012), Vector3(0.0, -0.096, -0.089), graphite)
@@ -818,6 +825,11 @@ func _build_weapon() -> void:
 	_box(_weapon, Vector3(0.004, 0.004, 0.006), Vector3(0.0, 0.105, -0.504), sight_dot)
 	for side: float in [-1.0, 1.0]:
 		_box(_weapon, Vector3(0.008, 0.035, 0.019), Vector3(side * 0.022, 0.093, -0.51), graphite)
+	# Left-side controls remain shallow; no added obstruction to the sight line.
+	_bevel(_weapon, Vector3(0.004, 0.024, 0.080), Vector3(-0.054, 0.013, -0.103), dark, 0.001)
+	var selector: MeshInstance3D = _bevel(_weapon, Vector3(0.008, 0.009, 0.029), Vector3(-0.057, -0.038, 0.006), steel, 0.0015)
+	selector.rotation.x = -0.35
+	preload("res://scripts/weapon_finish.gd").merge_children(_weapon, "RifleBody")
 	_hands = preload("res://scripts/first_person_hands.gd").new()
 	_hands.name = "FirstPersonHands"
 	_weapon.add_child(_hands)
