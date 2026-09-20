@@ -114,7 +114,7 @@ scripts/legacy/                旧训练玩法（course.gd / target.gd），未�
 python tools\setup_gdcheck.py
 ```
 
-装入 gdtoolkit 4.5.0 到 `tools\gdcheck\`（已忽略），随后可用 `tools\gdcheck\bin\gdlint.exe scripts` 做 GDScript 静态检查。字体子集化用 `tools\subset_font.py`，依赖 fontTools。
+装入 gdtoolkit 4.5.0 到 `tools\gdcheck\`（已忽略），随后可用 `tools\gdcheck\Scripts\gdlint.exe scripts` 做 GDScript 静态检查。该工具带平台相关的编译扩展，只能在本地安装，不适合随仓库分发。字体子集化用 `tools\subset_font.py`，依赖 fontTools。
 
 ## 当前验证
 
