@@ -2,7 +2,7 @@ extends CharacterBody3D
 
 signal eliminated(bot: Node3D, killer: Node)
 
-const SoldierModel = preload("res://scripts/soldier_rig.gd")
+const SoldierModel = preload("res://scripts/modern_soldier_rig.gd")
 const SEPARATION_RANGE: float = 1.6
 const STEP_EASE_MAX: float = 0.34
 var game: Node3D
