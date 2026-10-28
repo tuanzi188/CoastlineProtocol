@@ -4,7 +4,7 @@
 // Incrementing CACHE_VERSION will kick off the install event and force
 // previously cached resources to be updated from the network.
 /** @type {string} */
-const CACHE_VERSION = '1793182463|11733832';
+const CACHE_VERSION = '1793190542|13689793';
 /** @type {string} */
 const CACHE_PREFIX = '海岸行动 · Coastline-sw-cache-';
 const CACHE_NAME = CACHE_PREFIX + CACHE_VERSION;
