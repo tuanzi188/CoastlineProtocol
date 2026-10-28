@@ -38,7 +38,7 @@ body {
 }
 
 #status {
-	background-color: #242424;
+	background-color: #080f12;
 	display: flex;
 	flex-direction: column;
 	justify-content: center;
@@ -93,7 +93,7 @@ body {
 		<link id="-gd-engine-icon" rel="icon" type="image/png" href="index.icon.png" />
 <link rel="apple-touch-icon" href="index.apple-touch-icon.png"/>
 <link rel="manifest" href="index.manifest.json">
-
+<style>body{background:#081114;}#status{background:#081114;}#status-progress{width:min(520px,60vw);height:4px;accent-color:#65dedc;border-radius:2px;}#status-progress::-webkit-progress-bar{background:#1b2c30;border-radius:2px;}#status-progress::-webkit-progress-value{background:#65dedc;border-radius:2px;}#status-progress::-moz-progress-bar{background:#65dedc;}#status::after{content:'正在加载战场资源…';position:absolute;bottom:calc(10% + 18px);left:50%;transform:translateX(-50%);color:#8fa6a8;font:14px/1.4 Microsoft YaHei,sans-serif;letter-spacing:2px;}</style>
 	</head>
 	<body>
 		<canvas id="canvas">
@@ -112,7 +112,7 @@ body {
 
 		<script src="index.js"></script>
 		<script>
-const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"emscriptenPoolSize":8,"ensureCrossOriginIsolationHeaders":true,"executable":"index","experimentalVK":false,"fileSizes":{"index.pck":8371260,"index.wasm":38034280},"focusCanvas":true,"gdextensionLibs":[],"godotPoolSize":4,"serviceWorker":"index.service.worker.js"};
+const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"emscriptenPoolSize":8,"ensureCrossOriginIsolationHeaders":true,"executable":"index","experimentalVK":false,"fileSizes":{"index.pck":14840736,"index.wasm":38034280},"focusCanvas":true,"gdextensionLibs":[],"godotPoolSize":4,"serviceWorker":"index.service.worker.js"};
 const GODOT_THREADS_ENABLED = false;
 const engine = new Engine(GODOT_CONFIG);
 
