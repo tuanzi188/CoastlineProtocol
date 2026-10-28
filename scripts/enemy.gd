@@ -1,4 +1,4 @@
-﻿extends CharacterBody3D
+extends CharacterBody3D
 
 signal eliminated(bot: Node3D, killer: Node)
 

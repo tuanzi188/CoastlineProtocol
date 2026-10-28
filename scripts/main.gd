@@ -84,13 +84,13 @@ func _ready() -> void:
 	player.shot_fired.connect(_player_shot)
 	hud.show_menu()
 	settings=SettingsScript.new()
-	hud.get_node("TacticalHUD").add_child(settings)
+	hud.get_ui_root().add_child(settings)
 	settings.setup(player)
 	settings.visible=true
 	_build_status()
 	if mobile_mode:
 		mobile_controls=preload("res://scripts/mobile_controls.gd").new()
-		hud.get_node("TacticalHUD").add_child(mobile_controls)
+		hud.get_ui_root().add_child(mobile_controls)
 		mobile_controls.setup(self)
 		_loot_hint.position=Vector2(365,501)
 		_loot_hint.size=Vector2(470,34)
@@ -109,7 +109,7 @@ func _prepare() -> void:
 	var excluded: Array[RID]=[player.get_rid()]
 	await nav.build(world,excluded)
 	initializing=false
-	_status.text="单人生存  /  你 + 8 名 AI\n听枪声、找掩体，留意安全区"
+	_status.text="单人生存  /  你 + 8 名 AI  ·  听枪声、找掩体，留意安全区"
 	if _test_mode:
 		var test: Node=load("res://tests/combat_test.gd").new()
 		add_child(test)
@@ -397,14 +397,14 @@ func _build_status() -> void:
 	var font: FontFile = load("res://assets/simhei.ttf")
 	_status=Label.new()
 	_status.position=Vector2(475,94)
-	_status.size=Vector2(420,60)
+	_status.size=Vector2(520,30)
 	_status.text="正在准备海岛与 AI 路径…"
 	_status.add_theme_font_override("font",font)
-	_status.add_theme_font_size_override("font_size",18)
+	_status.add_theme_font_size_override("font_size",15)
 	_status.add_theme_color_override("font_shadow_color",Color.BLACK)
 	_status.add_theme_constant_override("shadow_offset_y",2)
 	_status.mouse_filter=Control.MOUSE_FILTER_IGNORE
-	hud.get_node("TacticalHUD").add_child(_status)
+	hud.get_ui_root().add_child(_status)
 	_loot_hint=Label.new()
 	_loot_hint.position=Vector2(410,601)
 	_loot_hint.size=Vector2(510,34)
@@ -415,7 +415,7 @@ func _build_status() -> void:
 	_loot_hint.add_theme_color_override("font_shadow_color",Color.BLACK)
 	_loot_hint.add_theme_constant_override("shadow_offset_y",2)
 	_loot_hint.mouse_filter=Control.MOUSE_FILTER_IGNORE
-	hud.get_node("TacticalHUD").add_child(_loot_hint)
+	hud.get_ui_root().add_child(_loot_hint)
 	_loot_hint.hide()
 
 func _notification(what: int) -> void:

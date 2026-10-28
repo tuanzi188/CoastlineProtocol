@@ -1,4 +1,4 @@
-﻿extends CanvasLayer
+extends CanvasLayer
 
 signal start_requested
 signal resume_requested
@@ -57,6 +57,7 @@ var _game_properties: Dictionary = {}
 var _player: Node3D
 var _world: Node3D
 var _surface: HUDSurface
+var _ui_root: Control
 var _font: FontFile
 var _buttons: Array[Button] = []
 var _properties: Dictionary = {}
@@ -220,6 +221,11 @@ func _ensure_ui() -> void:
 	_surface.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_surface.size = DESIGN_SIZE
 	add_child(_surface)
+	_ui_root = Control.new()
+	_ui_root.name = "UI"
+	_ui_root.size = DESIGN_SIZE
+	_ui_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_ui_root)
 	_add_button(Rect2(40.0, 355.0, 356.0, 54.0), true, _on_primary)
 	_add_button(Rect2(40.0, 421.0, 232.0, 42.0), false, _on_restart)
 	_add_button(Rect2(284.0, 421.0, 112.0, 42.0), false, _on_quit)
@@ -228,6 +234,10 @@ func _ensure_ui() -> void:
 	# must be invalidated before the next _fit_viewport() can be skipped.
 	_viewport_shown = Rect2()
 	_fit_viewport()
+
+
+func get_ui_root() -> Control:
+	return _ui_root
 
 
 func _add_button(rect: Rect2, primary: bool, callback: Callable) -> void:
@@ -252,7 +262,7 @@ func _add_button(rect: Rect2, primary: bool, callback: Callable) -> void:
 	focus.set_expand_margin_all(3.0)
 	button.add_theme_stylebox_override("focus", focus)
 	button.pressed.connect(callback)
-	_surface.add_child(button)
+	_ui_root.add_child(button)
 	_buttons.append(button)
 
 
@@ -312,10 +322,16 @@ func _fit_viewport() -> void:
 		var mobile_ratio: float = minf(available.size.x / (DESIGN_SIZE.x + 32.0), available.size.y / (DESIGN_SIZE.y + 32.0))
 		_surface.scale = Vector2.ONE * mobile_ratio
 		_surface.position = available.position + (available.size - DESIGN_SIZE * mobile_ratio) * 0.5
+		if is_instance_valid(_ui_root):
+			_ui_root.scale = Vector2.ONE * mobile_ratio
+			_ui_root.position = _surface.position
 		return
 	var ratio: float = minf(viewport_size.x / DESIGN_SIZE.x, viewport_size.y / DESIGN_SIZE.y)
 	_surface.scale = Vector2.ONE * ratio
 	_surface.position = (viewport_size - DESIGN_SIZE * ratio) * 0.5
+	if is_instance_valid(_ui_root):
+		_ui_root.scale = Vector2.ONE * ratio
+		_ui_root.position = _surface.position
 
 
 func _process(delta: float) -> void:

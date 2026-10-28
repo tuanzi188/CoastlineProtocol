@@ -1,4 +1,4 @@
-﻿extends CharacterBody3D
+extends CharacterBody3D
 ## Self-contained coastal FPS controller. The owner controls active and mouse capture.
 
 signal shot_fired

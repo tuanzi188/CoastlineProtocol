@@ -1,6 +1,7 @@
 extends Node
 
 const STEP: float = 2.0
+const PREBAKED_PATH: String = "res://assets/nav_graph.json"
 ## Chunk sizes are expressed in grid cells, not rows, so one frame of the build
 ## never issues more than a couple hundred physics queries even on a wide row.
 const BUILD_CHUNK: int = 48
@@ -19,6 +20,10 @@ func build(island: Node3D,exclude: Array[RID]) -> void:
 	graph.clear()
 	cells.clear()
 	ids.clear()
+	if _load_prebaked():
+		ready_for_paths=ids.size()>0
+		print("COMBAT_NAV_PREBAKED nodes=%d" % ids.size())
+		return
 	var shape:=CapsuleShape3D.new()
 	shape.radius=0.34
 	shape.height=1.48
@@ -63,6 +68,48 @@ func build(island: Node3D,exclude: Array[RID]) -> void:
 			graph.connect_points(id,cells[other],true)
 	ready_for_paths=ids.size()>0
 	print("COMBAT_NAV_READY nodes=%d" % ids.size())
+
+func _load_prebaked() -> bool:
+	if not FileAccess.file_exists(PREBAKED_PATH):
+		return false
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(PREBAKED_PATH))
+	if typeof(parsed) != TYPE_DICTIONARY:
+		return false
+	var points: Array = (parsed as Dictionary).get("points", [])
+	var connections: Array = (parsed as Dictionary).get("connections", [])
+	if points.is_empty():
+		return false
+	var next_id: int = 0
+	for point: Variant in points:
+		var values: Array = point
+		var position := Vector3(float(values[0]), float(values[1]), float(values[2]))
+		graph.add_point(next_id, position)
+		cells[Vector2i(roundi(position.x / STEP) * int(STEP), roundi(position.z / STEP) * int(STEP))] = next_id
+		ids.append(next_id)
+		next_id += 1
+	for pair: Variant in connections:
+		var values: Array = pair
+		graph.connect_points(int(values[0]), int(values[1]), true)
+	return true
+
+
+func save_prebaked(path: String = PREBAKED_PATH) -> void:
+	var points: Array = []
+	for id: int in graph.get_point_ids():
+		var position: Vector3 = graph.get_point_position(id)
+		points.append([snappedf(position.x, 0.001), snappedf(position.y, 0.001), snappedf(position.z, 0.001)])
+	var connections: Array = []
+	for id: int in graph.get_point_ids():
+		for other: int in graph.get_point_connections(id):
+			if id < other:
+				connections.append([id, other])
+	var data: Dictionary = {"version": 1, "step": STEP, "points": points, "connections": connections}
+	var file: FileAccess = FileAccess.open(path, FileAccess.WRITE)
+	if file == null:
+		push_error("Could not write nav graph: %s" % path)
+		return
+	file.store_string(JSON.stringify(data))
+
 
 func _clear(p: Vector3,space: PhysicsDirectSpaceState3D) -> bool:
 	_query.transform=Transform3D(Basis.IDENTITY,p+Vector3.UP*1.0)

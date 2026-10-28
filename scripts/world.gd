@@ -1,4 +1,4 @@
-﻿extends Node3D
+extends Node3D
 
 var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var materials: Dictionary = {}

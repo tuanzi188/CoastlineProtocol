@@ -1,4 +1,4 @@
-﻿extends Node3D
+extends Node3D
 ## KayKit-backed infantry: a real skinned humanoid driven by authored
 ## animation clips instead of procedural joint solving.
 ##
