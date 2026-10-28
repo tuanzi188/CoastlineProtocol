@@ -3,8 +3,9 @@ extends Node3D
 ##
 ## The GLB is a flat set of low-poly parts (no skeleton, no clips). Each limb is
 ## reparented under a pivot at its joint so procedural locomotion can drive a
-## modern-soldier silhouette. The authored rifle is replaced with the same
-## procedural carbine the rest of the prototype uses.
+## modern-soldier silhouette. Upper-body lean, body bob and aim twist run on a
+## waist pivot; the legs stay planted. The authored rifle is replaced with the
+## same procedural carbine the rest of the prototype uses.
 
 const MODEL_PATH: String = "res://assets/characters/ModernSoldier.glb"
 const RUN_SPEED: float = 4.3
@@ -23,6 +24,8 @@ static var _paint_cache: Dictionary = {}
 
 var muzzle: Marker3D
 var _model: Node3D
+var _hips: Node3D
+var _hips_base: Vector3
 var _arm_l: Node3D
 var _arm_r: Node3D
 var _leg_l: Node3D
@@ -30,9 +33,13 @@ var _leg_r: Node3D
 var _head: Node3D
 var _rifle: MeshInstance3D
 var _rifle_base: Vector3
+var _magazine: MeshInstance3D
+var _magazine_base: Vector3
 var _phase: float = 0.0
+var _idle_time: float = 0.0
 var _hit_left: float = 0.0
 var _fire_left: float = 0.0
+var _reload_blend: float = 0.0
 var _dead_blend: float = 0.0
 var _built: bool = false
 
@@ -49,11 +56,23 @@ func build(variant: int = 0) -> void:
 	_model.scale = Vector3.ONE * MODEL_SCALE
 	add_child(_model)
 
+	_hips_base = Vector3(0.0, 0.98, 0.0)
+	_hips = _pivot("HipsPivot", _hips_base)
 	_arm_l = _pivot("ArmLPivot", Vector3(-0.22, 1.25, 0.0))
 	_arm_r = _pivot("ArmRPivot", Vector3(0.22, 1.25, 0.0))
 	_leg_l = _pivot("LegLPivot", Vector3(-0.08, 0.70, 0.0))
 	_leg_r = _pivot("LegRPivot", Vector3(0.08, 0.70, 0.0))
 	_head = _pivot("HeadPivot", Vector3(0.0, 1.52, 0.0))
+
+	# Upper body rides the waist pivot; legs stay on the model root.
+	_adopt(_hips, "ArmLPivot")
+	_adopt(_hips, "ArmRPivot")
+	_adopt(_hips, "HeadPivot")
+	_adopt(_hips, "Torso")
+	_adopt(_hips, "Vest")
+	_adopt(_hips, "Pouch1")
+	_adopt(_hips, "Pouch2")
+	_adopt(_hips, "Pouch3")
 
 	_adopt(_arm_l, "ArmL")
 	_adopt(_arm_l, "HandL")
@@ -66,8 +85,6 @@ func build(variant: int = 0) -> void:
 	_adopt(_head, "Head")
 	_adopt(_head, "Helmet")
 	_adopt(_head, "Visor")
-
-	_add_body_fill()
 
 	# The authored rifle is a thin placeholder; hide it and mount the carbine.
 	for hidden: String in ["Rifle", "RifleBarrel"]:
@@ -83,30 +100,10 @@ func build(variant: int = 0) -> void:
 	_bulk("LegR", Vector3(1.08, 1.0, 1.08))
 	_bulk("Head", Vector3(1.04, 1.0, 1.04))
 
+	_add_body_fill()
+	_add_gear(variant)
 	_attach_rifle()
 	_tint_uniform(variant)
-
-
-## The source GLB has no waist or neck geometry, so the torso, legs and head
-## would otherwise float apart during animation. Two primitives close the gaps.
-func _add_body_fill() -> void:
-	var pelvis: MeshInstance3D = MeshInstance3D.new()
-	pelvis.name = "Pelvis"
-	var pelvis_box: BoxMesh = BoxMesh.new()
-	pelvis_box.size = Vector3(0.235, 0.24, 0.15)
-	pelvis.mesh = pelvis_box
-	pelvis.position = Vector3(0.0, 1.00, 0.0)
-	_model.add_child(pelvis)
-
-	var neck: MeshInstance3D = MeshInstance3D.new()
-	neck.name = "Neck"
-	var neck_cylinder: CylinderMesh = CylinderMesh.new()
-	neck_cylinder.top_radius = 0.055
-	neck_cylinder.bottom_radius = 0.065
-	neck_cylinder.height = 0.20
-	neck.mesh = neck_cylinder
-	neck.position = Vector3(0.0, 1.46, 0.0)
-	_model.add_child(neck)
 
 
 func _pivot(pivot_name: String, at: Vector3) -> Node3D:
@@ -149,6 +146,57 @@ func _model_position(node: Node3D) -> Vector3:
 	return position
 
 
+## The source GLB has no waist or neck geometry, so the torso, legs and head
+## would otherwise float apart during animation. Two primitives close the gaps.
+func _add_body_fill() -> void:
+	_detail_box(_hips, "Pelvis", Vector3(0.235, 0.24, 0.15), Vector3(0.0, 0.02, 0.0), Color("4a5344"))
+	_detail_cylinder(_hips, "Neck", 0.055, 0.065, 0.20, Vector3(0.0, 0.48, 0.0), Color("b98d6f"))
+
+
+## Small silhouette props: backpack, straps, pads, helmet mount, armband,
+## holster and antenna. All are primitives, so they cost almost nothing.
+func _add_gear(variant: int) -> void:
+	var accent: Color = Color("65dedc") if variant % 2 == 0 else Color("edd7a8")
+	_detail_box(_hips, "Backpack", Vector3(0.22, 0.26, 0.12), Vector3(0.0, 0.27, 0.14), Color("3f4a3c"))
+	_detail_box(_hips, "StrapL", Vector3(0.030, 0.22, 0.020), Vector3(-0.07, 0.25, -0.075), Color("2b3129"))
+	_detail_box(_hips, "StrapR", Vector3(0.030, 0.22, 0.020), Vector3(0.07, 0.25, -0.075), Color("2b3129"))
+	_detail_cylinder(_hips, "Antenna", 0.006, 0.006, 0.34, Vector3(0.09, 0.48, 0.16), Color("202623"))
+	_detail_box(_arm_l, "ShoulderPadL", Vector3(0.13, 0.08, 0.13), Vector3(0.0, 0.02, 0.0), Color("3a4437"))
+	_detail_box(_arm_r, "ShoulderPadR", Vector3(0.13, 0.08, 0.13), Vector3(0.0, 0.02, 0.0), Color("3a4437"))
+	_detail_box(_leg_l, "KneePadL", Vector3(0.12, 0.12, 0.10), Vector3(0.0, -0.28, -0.055), Color("2f3833"))
+	_detail_box(_leg_r, "KneePadR", Vector3(0.12, 0.12, 0.10), Vector3(0.0, -0.28, -0.055), Color("2f3833"))
+	_detail_box(_head, "HelmetMount", Vector3(0.06, 0.05, 0.05), Vector3(0.0, 0.20, -0.08), Color("242b28"))
+	_detail_box(_arm_l, "Armband", Vector3(0.115, 0.035, 0.115), Vector3(0.0, -0.12, 0.0), accent)
+	_detail_box(_leg_r, "Holster", Vector3(0.07, 0.14, 0.05), Vector3(0.065, -0.20, 0.02), Color("262c28"))
+	_detail_box(_hips, "Radio", Vector3(0.035, 0.09, 0.045), Vector3(0.10, 0.18, -0.095), Color("202623"))
+
+
+func _detail_box(parent: Node3D, detail_name: String, size: Vector3, at: Vector3, color: Color) -> MeshInstance3D:
+	var instance: MeshInstance3D = MeshInstance3D.new()
+	instance.name = detail_name
+	var box: BoxMesh = BoxMesh.new()
+	box.size = size
+	instance.mesh = box
+	instance.position = at
+	instance.material_override = _paint(color, 0.0, 0.92, 0.18)
+	parent.add_child(instance)
+	return instance
+
+
+func _detail_cylinder(parent: Node3D, detail_name: String, top: float, bottom: float, height: float, at: Vector3, color: Color) -> MeshInstance3D:
+	var instance: MeshInstance3D = MeshInstance3D.new()
+	instance.name = detail_name
+	var cylinder: CylinderMesh = CylinderMesh.new()
+	cylinder.top_radius = top
+	cylinder.bottom_radius = bottom
+	cylinder.height = height
+	instance.mesh = cylinder
+	instance.position = at
+	instance.material_override = _paint(color, 0.25, 0.55, 0.30)
+	parent.add_child(instance)
+	return instance
+
+
 func _attach_rifle() -> void:
 	var hand: Node3D = Node3D.new()
 	hand.name = "RifleHand"
@@ -162,6 +210,8 @@ func _attach_rifle() -> void:
 		Vector3(0.02, -0.06, -0.14))
 	_rifle_base = _rifle.position
 	hand.add_child(_rifle)
+	_magazine = _detail_box(_rifle, "Magazine", Vector3(0.028, 0.095, 0.045), Vector3(0.0, -0.025, 0.02), Color("2a302c"))
+	_magazine_base = _magazine.position
 	muzzle = Marker3D.new()
 	muzzle.name = "Muzzle"
 	muzzle.position = Vector3(0.0, 0.010, -0.64)
@@ -240,8 +290,17 @@ func _tint_uniform(variant: int) -> void:
 		if part == "Visor":
 			_override_surface(mesh_instance, Color("16282b"), 0.35, 0.24)
 			continue
+		if part == "HandL" or part == "HandR":
+			_override_surface(mesh_instance, Color("2b302c"), 0.0, 0.90)
+			continue
+		if part == "BootL" or part == "BootR":
+			_override_surface(mesh_instance, Color("202522"), 0.0, 0.92)
+			continue
+		if part.begins_with("Pouch"):
+			_override_surface(mesh_instance, tint.darkened(0.18), 0.0, 0.90)
+			continue
 		if not (part == "Torso" or part == "Vest" or part == "ArmL" or part == "ArmR"
-				or part == "LegL" or part == "LegR" or part == "Helmet" or part == "Pelvis"):
+				or part == "LegL" or part == "LegR" or part == "Helmet"):
 			continue
 		_override_surface(mesh_instance, tint, 0.0, 0.88)
 
@@ -274,6 +333,7 @@ func animate(speed: float, aiming: bool, reloading: bool, dead: bool, delta: flo
 		return
 	_hit_left = maxf(0.0, _hit_left - delta)
 	_fire_left = maxf(0.0, _fire_left - delta)
+	_idle_time += delta
 	var moving: float = clampf(speed / RUN_SPEED, 0.0, 1.0)
 	if moving > 0.05:
 		_phase += delta * lerpf(4.0, 11.0, moving)
@@ -282,19 +342,39 @@ func animate(speed: float, aiming: bool, reloading: bool, dead: bool, delta: flo
 	var aim: float = 1.0 if aiming else 0.0
 	var reload: float = 1.0 if reloading else 0.0
 	var blend: float = 1.0 - exp(-12.0 * delta)
+	_reload_blend = lerpf(_reload_blend, reload, 1.0 - exp(-10.0 * delta))
 
 	_leg_l.rotation.x = lerpf(_leg_l.rotation.x, swing, blend)
 	_leg_r.rotation.x = lerpf(_leg_r.rotation.x, -swing, blend)
-	_arm_r.rotation.x = lerpf(_arm_r.rotation.x, arm_swing + aim * 1.05, blend)
-	_arm_l.rotation.x = lerpf(_arm_l.rotation.x, -arm_swing + aim * 1.18 + reload * 0.55, blend)
+	_arm_r.rotation.x = lerpf(_arm_r.rotation.x, arm_swing + aim * 1.05 - _fire_left * 0.25, blend)
+	_arm_l.rotation.x = lerpf(_arm_l.rotation.x, -arm_swing + aim * 1.18 + reload * 0.55 + sin(_reload_blend * PI) * 0.25, blend)
 	_arm_r.rotation.z = lerpf(_arm_r.rotation.z, -aim * 0.10, blend)
 	_arm_l.rotation.z = lerpf(_arm_l.rotation.z, aim * 0.42, blend)
 	_head.rotation.x = lerpf(_head.rotation.x, aim * 0.08, blend)
+
+	# Waist dynamics: forward lean when running, bob on each step, sway, and a
+	# small aim twist. The legs are siblings, so the feet stay planted.
+	var bob: float = absf(sin(_phase * 2.0)) * 0.028 * moving
+	var breathe: float = sin(_idle_time * 1.6) * 0.004 * (1.0 - moving)
+	_hips.rotation.x = lerpf(_hips.rotation.x, -0.16 * moving + 0.05 * aim - _fire_left * 0.08, blend)
+	_hips.rotation.y = lerpf(_hips.rotation.y, -0.06 * aim, blend)
+	_hips.rotation.z = lerpf(_hips.rotation.z, sin(_phase) * 0.05 * moving + sin(_hit_left * 46.0) * 0.06 * _hit_left, blend)
+	_hips.position.y = _hips_base.y + bob + breathe
+	_hips.position.x = sin(_phase) * 0.018 * moving
+
+	# Reload: magazine drops out, left hand works the well.
+	_magazine.position = _magazine_base - Vector3(0.0, 0.13 * _reload_blend, 0.0)
+	_magazine.visible = _reload_blend > 0.03
 
 	if dead:
 		_dead_blend = minf(1.0, _dead_blend + delta * 2.4)
 	else:
 		_dead_blend = maxf(0.0, _dead_blend - delta * 4.0)
+	_arm_l.rotation.z = lerpf(_arm_l.rotation.z, -0.55 * _dead_blend, blend)
+	_arm_r.rotation.z = lerpf(_arm_r.rotation.z, 0.55 * _dead_blend, blend)
+	_leg_l.rotation.z = lerpf(_leg_l.rotation.z, -0.18 * _dead_blend, blend)
+	_leg_r.rotation.z = lerpf(_leg_r.rotation.z, 0.18 * _dead_blend, blend)
+	_head.rotation.z = lerpf(_head.rotation.z, 0.28 * _dead_blend, blend)
 	_model.rotation.z = -PI * 0.5 * _dead_blend
 	_model.position.y = -dip * 0.9 - 0.12 * _dead_blend
 	_model.position.x = sin(_hit_left * 42.0) * 0.035 * _hit_left
