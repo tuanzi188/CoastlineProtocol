@@ -127,6 +127,7 @@ var _muzzle_light: OmniLight3D
 var _surface: String = "grass"
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var _pitch: float = 0.0
+var _look_grace_until: int = 0
 var _recoil: float = 0.0
 var _recoil_yaw: float = 0.0
 var _burst: int = 0
@@ -227,8 +228,16 @@ func _build_effects() -> void:
 	_spark_pool.setup(MAX_SPARKS, _spark_geometry, _spark_material, _effects_host, true)
 
 
+## Swallow the first mouse-motion sample after capturing the cursor so clicking
+## the menu button does not spin the camera on the first gameplay frame.
+func begin_look() -> void:
+	_look_grace_until = Time.get_ticks_msec() + 180
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if not active or dead or Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
+		return
+	if Time.get_ticks_msec() < _look_grace_until:
 		return
 	if event is InputEventMouseMotion:
 		var motion: InputEventMouseMotion = event as InputEventMouseMotion

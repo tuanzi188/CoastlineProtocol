@@ -213,6 +213,8 @@ func _resume() -> void:
 	settings.hide()
 	_status.hide()
 	Input.mouse_mode=Input.MOUSE_MODE_VISIBLE if mobile_mode else Input.MOUSE_MODE_CAPTURED
+	if not mobile_mode:
+		player.call("begin_look")
 
 func _pause() -> void:
 	if is_instance_valid(mobile_controls): mobile_controls.release_all()
